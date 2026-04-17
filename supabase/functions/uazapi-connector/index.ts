@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
 
     const companyName = (company?.name || 'cliente').trim();
     // UAZAPI espera "name" no payload; sanitiza: lowercase, sem espaços, apenas alfanum e underscore
-    const instanceName = `salesia_${companyName
+    const instanceName = `siaone_${companyName
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // remove acentos

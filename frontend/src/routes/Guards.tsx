@@ -14,7 +14,7 @@ export const ProtectedRoute: React.FC<{
 
   if (sessionState === 'loading') {
     return (
-      <div className="flex-center w-full h-screen bg-[#0A0A0B] text-stone-400 font-mono text-sm">
+      <div className="flex-center w-full h-screen bg-background text-text-muted font-mono text-sm">
         Autenticando...
       </div>
     );
@@ -41,7 +41,7 @@ export const ProtectedRoute: React.FC<{
   // Wait for tenant data to load before making routing decisions
   if (tenantLoading) {
     return (
-      <div className="flex-center w-full h-screen bg-[#0A0A0B] text-stone-400 font-mono text-sm">
+      <div className="flex-center w-full h-screen bg-background text-text-muted font-mono text-sm">
         Carregando contexto...
       </div>
     );
@@ -63,7 +63,7 @@ export const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children 
   // Wait for profile to load before redirecting so we know the correct destination
   if (sessionState === 'loading' || profileLoading) {
     return (
-      <div className="flex-center w-full h-screen bg-[#0A0A0B] text-stone-400 font-mono text-sm">
+      <div className="flex-center w-full h-screen bg-background text-text-muted font-mono text-sm">
         Autenticando...
       </div>
     );

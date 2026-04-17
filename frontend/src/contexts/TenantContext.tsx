@@ -18,7 +18,7 @@ interface TenantContextType {
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'salesia-current-company';
+const STORAGE_KEY = 'siaone-current-company';
 
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, _setImpersonatedUser } = useAuth();

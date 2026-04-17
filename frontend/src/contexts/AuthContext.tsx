@@ -21,9 +21,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profileLoading, setProfileLoading] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [impersonated, setImpersonated] = useState<UserProfile | null>(null);
+  const mountedRef = React.useRef(true);
 
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
 
     // Use ONLY onAuthStateChange to handle ALL session events.
     // Previously we also called getSession() separately, but React StrictMode
@@ -31,7 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Supabase auth token. The second request "steals" the lock, aborting the first
     // and leaving sessionState stuck on 'loading'.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) return;
+      if (!mountedRef.current) return;
 
       if (session) {
         await handleSessionUpdate(session);
@@ -42,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -57,7 +58,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     console.log('[Auth] Session found for user:', session.user.id);
 
-    // Mark profile as loading so Guards hold the redirect until role is known
+    // Block Guards while we re-fetch the profile (e.g. on tab focus / token refresh).
+    // Without this reset, Guards remain in 'authenticated' state with potentially stale
+    // role data while the profile fetch races against the timeout — causing DOM errors
+    // if the fallback role triggers a redirect mid-render.
+    setSessionState('loading');
     setProfileLoading(true);
 
     // Fetch the extended profile — set authenticated only after role is confirmed
@@ -73,6 +78,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ),
       ]);
 
+      if (!mountedRef.current) return;
+
       if (!error && profile) {
         console.log('[Auth] Profile loaded:', profile.full_name, profile.system_role);
         // NOTE: DB stores 'platform_admin' but we expose 'system_admin' as the frontend role.
@@ -86,8 +93,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: (profile.system_role === 'platform_admin' ? 'system_admin' : profile.system_role) as Role,
         });
       } else {
+        // Fallback: use metadata from the session JWT. We do NOT default to 'agent'
+        // because a high-privilege user (platform_admin) who hits a timeout would
+        // briefly get the wrong role, triggering Guards to redirect and crash the DOM.
+        // Instead we keep the previously known role if user is already set, or fall
+        // back to 'agent' only on first login when no prior state exists.
         console.warn('[Auth] Profile fetch failed, using fallback role:', error?.message);
-        setUser({
+        setUser(prev => prev ?? {
           id: session.user.id,
           email: session.user.email || '',
           full_name: session.user.user_metadata?.full_name || 'Usuário',
@@ -96,8 +108,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } catch (err) {
+      if (!mountedRef.current) return;
       console.error('[Auth] Unexpected error fetching profile:', err);
-      setUser({
+      setUser(prev => prev ?? {
         id: session.user.id,
         email: session.user.email || '',
         full_name: session.user.user_metadata?.full_name || 'Usuário',
@@ -105,6 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: 'agent',
       });
     } finally {
+      if (!mountedRef.current) return;
       setProfileLoading(false);
       setSessionState('authenticated');
       console.log('[Auth] State set to authenticated');

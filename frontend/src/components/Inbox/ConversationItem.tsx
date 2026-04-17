@@ -92,8 +92,8 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             <span
               className={`text-sm font-medium truncate transition-colors ${
                 isActive || hasUnread
-                  ? 'text-white'
-                  : 'text-stone-400 group-hover:text-white'
+                  ? 'text-text-main'
+                  : 'text-text-muted group-hover:text-text-main'
               }`}
             >
               {conversation.contact_name || 'Contato Desconhecido'}

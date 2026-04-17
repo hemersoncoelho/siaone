@@ -193,8 +193,8 @@ const TransferButton: React.FC<TransferButtonProps> = ({ companyId, onTransfer }
         className={cn(
           'w-8 h-8 flex items-center justify-center rounded-lg transition-colors',
           open
-            ? 'text-white bg-surface border border-border'
-            : 'text-stone-600 hover:text-white hover:bg-surface'
+            ? 'text-text-main bg-surface border border-border'
+            : 'text-text-muted hover:text-text-main hover:bg-surface'
         )}
         title="Transferir conversa"
       >
@@ -204,8 +204,8 @@ const TransferButton: React.FC<TransferButtonProps> = ({ companyId, onTransfer }
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-10 z-20 w-52 bg-[#1C1C1E] border border-[#3A3A3C] rounded-xl shadow-2xl overflow-hidden">
-            <div className="px-3 py-2 border-b border-[#3A3A3C]">
+          <div className="absolute right-0 top-10 z-20 w-52 bg-surface border border-border rounded-xl shadow-2xl overflow-hidden">
+            <div className="px-3 py-2 border-b border-border">
               <span className="text-[10px] font-mono uppercase tracking-widest text-stone-500">
                 Transferir conversa
               </span>
@@ -227,9 +227,9 @@ const TransferButton: React.FC<TransferButtonProps> = ({ companyId, onTransfer }
                     <button
                       key={m.id}
                       onClick={() => { onTransfer(m.id, m.full_name); setOpen(false); }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-300 hover:text-white hover:bg-white/5 transition-colors text-left"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-text-main hover:bg-surface-hover transition-colors text-left"
                     >
-                      <span className="w-6 h-6 rounded-full bg-stone-700 text-stone-300 text-[10px] font-semibold flex items-center justify-center shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-surface-hover border border-border text-text-muted text-[10px] font-semibold flex items-center justify-center shrink-0">
                         {initials}
                       </span>
                       <span className="truncate">{m.full_name}</span>
@@ -540,18 +540,30 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     if (!currentCompany) return;
     const { data } = await supabase
       .from('ai_agents')
-      .select('id, company_id, name, provider, model, scope, handoff_keywords, is_active, is_published, created_at, updated_at')
+      .select('id, company_id, name, model_provider, model_name, system_prompt, config, is_active, created_at, updated_at')
       .eq('company_id', currentCompany.id)
-      .eq('is_published', true)
       .order('name');
     if (data) {
       setAvailableAgents(
-        data.map((a) => ({
-          ...a,
-          handoff_keywords: a.handoff_keywords ?? [],
-          scope: a.scope ?? { channels: [], auto_reply: false },
-          is_published: a.is_published ?? true,
-        })) as AiAgent[]
+        data
+          .map((a) => {
+            const cfg = (a.config ?? {}) as Record<string, any>;
+            return {
+              ...a,
+              provider: (a.model_provider ?? 'openai') as AiAgent['provider'],
+              model: a.model_name ?? 'gpt-4o-mini',
+              scope: {
+                channels: cfg.channels ?? [],
+                auto_reply: cfg.auto_reply ?? false,
+              },
+              handoff_keywords: cfg.handoff_keywords ?? [],
+              handoff_after_mins: cfg.handoff_after_mins ?? null,
+              // is_published vive apenas no config JSONB (não é coluna top-level)
+              is_published: (cfg.is_published as boolean) ?? false,
+            };
+          })
+          // Filtra client-side: só agentes publicados aparecem no dropdown
+          .filter((a) => a.is_published) as AiAgent[]
       );
     }
   }, [currentCompany]);
@@ -571,6 +583,11 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       sender_type: senderType as any,
       sender_id: m.sender_user_id ?? m.sender_id ?? null,
       body: m.body ?? '',
+      message_type: m.message_type ?? 'text',
+      media_url: m.media_url ?? null,
+      media_mime_type: m.media_mime_type ?? null,
+      media_filename: m.media_filename ?? null,
+      metadata: m.metadata ?? null,
       status: m.status ?? 'sent',
       is_internal: m.is_internal ?? false,
       ai_agent_id: m.ai_agent_id ?? null,
@@ -753,6 +770,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       sender_type: 'agent',
       sender_id: user.id,
       body,
+      message_type: 'text',
       status: isInternal ? 'sent' : 'queued',
       is_internal: isInternal,
       created_at: new Date().toISOString(),
@@ -862,6 +880,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         conversation_id: conversation.conversation_id,
         sender_type: 'system',
         body: eventBody,
+        message_type: 'text',
         status: 'sent',
         is_internal: false,
         ai_agent_id: agentId,
@@ -888,6 +907,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         body: userName
           ? `Conversa transferida para ${userName}.`
           : 'Conversa transferida.',
+        message_type: 'text',
         status: 'sent',
         is_internal: false,
         created_at: new Date().toISOString(),
@@ -950,7 +970,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         </div>
         <div className="mt-12 flex items-center gap-3">
           <div className="h-px w-12 bg-stone-800" />
-          <span className="text-[10px] font-mono text-stone-800 uppercase tracking-widest">SalesIA</span>
+          <span className="text-[10px] font-mono text-stone-800 uppercase tracking-widest">Sia One</span>
           <div className="h-px w-12 bg-stone-800" />
         </div>
       </div>
@@ -997,7 +1017,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
               {contactInitials}
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-white leading-tight flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-text-main leading-tight flex items-center gap-2">
                 {conversation.contact_name}
                 {isClosed && (
                   <span className="text-[10px] bg-stone-700/50 text-stone-500 px-1.5 py-0.5 rounded border border-stone-700 uppercase tracking-wider font-mono">
@@ -1085,7 +1105,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
             <button
               onClick={() => handleChangeMode('human')}
               disabled={handoffLoading}
-              className="flex items-center gap-1.5 text-[11px] font-semibold text-stone-500 hover:text-white px-2.5 py-1 bg-background border border-border rounded-lg transition-colors"
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-text-muted hover:text-text-main px-2.5 py-1 bg-background border border-border rounded-lg transition-colors"
             >
               <ZapOff size={10} />
               Pausar
@@ -1103,7 +1123,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
             <button
               onClick={() => handleChangeMode('human')}
               disabled={handoffLoading}
-              className="flex items-center gap-1.5 text-[11px] font-semibold text-stone-500 hover:text-white px-2.5 py-1 bg-background border border-border rounded-lg transition-colors"
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-text-muted hover:text-text-main px-2.5 py-1 bg-background border border-border rounded-lg transition-colors"
             >
               <User size={10} />
               Só humano
@@ -1142,8 +1162,8 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
             'flex items-center justify-center',
             'w-4 h-10 rounded-full border transition-all duration-200',
             showContext
-              ? 'bg-surface border-border text-stone-500 hover:text-white hover:border-stone-500'
-              : 'bg-surface border-border text-stone-600 hover:text-white hover:border-stone-500'
+              ? 'bg-surface border-border text-text-muted hover:text-text-main hover:border-stone-500'
+              : 'bg-surface border-border text-text-muted hover:text-text-main hover:border-stone-500'
           )}
         >
           {showContext
@@ -1155,7 +1175,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
 
       {/* Context Sidebar */}
       {showContext && (
-        <div className="w-72 flex flex-col shrink-0 border-l border-border bg-[#131314]">
+        <div className="w-72 flex flex-col shrink-0 border-l border-border bg-surface">
 
           {/* Tab bar */}
           <div className="flex shrink-0 border-b border-border">
@@ -1166,8 +1186,8 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
                 className={cn(
                   'flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold transition-all relative',
                   sidebarTab === tab
-                    ? 'text-white'
-                    : 'text-stone-600 hover:text-stone-400'
+                    ? 'text-text-main'
+                    : 'text-text-muted hover:text-text-main'
                 )}
               >
                 {tab === 'notes' && <StickyNote size={11} />}
@@ -1198,11 +1218,11 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
                         'rounded-xl border p-3 text-sm',
                         currentMode === 'ai'
                           ? 'bg-indigo-500/8 border-indigo-500/20'
-                          : 'bg-white/[0.03] border-white/[0.06]'
+                          : 'bg-surface-hover border-border'
                       )}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium text-stone-200 truncate">
+                        <span className="font-medium text-text-main truncate">
                           {conversation.ai_agent_name ?? '—'}
                         </span>
                         <span
@@ -1239,13 +1259,13 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
                     icon={<DollarSign size={12} />}
                     defaultOpen={true}
                   >
-                    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 hover:bg-white/[0.05] transition-colors cursor-pointer">
+                    <div className="rounded-xl border border-border bg-surface-hover p-3 hover:bg-border transition-colors cursor-pointer">
                       <div className="flex items-center gap-2">
                         <span className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0">
                           <DollarSign size={13} className="text-emerald-400" />
                         </span>
                         <div className="min-w-0">
-                          <p className="text-xs font-medium text-stone-300 truncate">
+                          <p className="text-xs font-medium text-text-main truncate">
                             {conversation.contact_name}
                           </p>
                           <p className="text-[10px] text-emerald-400 font-mono">
@@ -1268,7 +1288,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
                         'w-6 h-6 flex items-center justify-center rounded-md transition-colors',
                         showQuickTask
                           ? 'bg-primary/20 text-primary'
-                          : 'text-stone-600 hover:text-stone-300 hover:bg-white/[0.05]'
+                          : 'text-text-muted hover:text-text-main hover:bg-surface-hover'
                       )}
                       title="Nova tarefa"
                     >
@@ -1295,7 +1315,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
                           }}
                           placeholder="Título da tarefa..."
                           autoFocus={showQuickTask}
-                          className="flex-1 bg-white/[0.04] border border-border rounded-lg px-2.5 py-1.5 text-xs text-stone-200 placeholder-stone-600 outline-none focus:border-primary/40 focus:bg-white/[0.06] transition-colors"
+                          className="flex-1 bg-surface-hover border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-main placeholder-stone-600 outline-none focus:border-primary/40 focus:bg-border transition-colors"
                         />
                         <button
                           onClick={handleQuickTask}
@@ -1311,7 +1331,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
                   {loadingTasks ? (
                     <div className="space-y-2">
                       {[1, 2].map((i) => (
-                        <div key={i} className="h-9 bg-white/[0.03] rounded-lg animate-pulse" />
+                        <div key={i} className="h-9 bg-surface-hover rounded-lg animate-pulse" />
                       ))}
                     </div>
                   ) : tasks.length === 0 ? (

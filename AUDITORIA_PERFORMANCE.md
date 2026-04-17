@@ -1,4 +1,4 @@
-# Auditoria de Performance — SalesIA Frontend
+# Auditoria de Performance — Sia One Frontend
 
 **Data:** 15/03/2025  
 **Objetivo:** Identificar e corrigir gargalos de performance sem refatoração ampla.

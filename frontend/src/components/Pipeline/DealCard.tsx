@@ -85,7 +85,7 @@ export const DealCard: React.FC<DealCardProps> = ({
       onDragEnd={() => setIsDragging(false)}
       className={cn(
         'group glass-panel rounded-lg p-3.5 transition-all duration-200',
-        'hover:border-stone-500 hover:bg-[#1A1A1B]',
+        'hover:border-stone-500 hover:bg-surface-hover',
         canMove ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
         moving && 'opacity-40 pointer-events-none scale-95',
         isDragging && 'opacity-30 scale-[0.97] border-stone-600'
@@ -111,7 +111,7 @@ export const DealCard: React.FC<DealCardProps> = ({
             <button
               onClick={e => { e.stopPropagation(); setMenuOpen(v => !v); }}
               className={cn(
-                'p-1 rounded hover:bg-white/10 transition-all text-stone-500 hover:text-stone-300',
+                'p-1 rounded hover:bg-surface-hover transition-all text-text-muted hover:text-text-main',
                 'opacity-0 group-hover:opacity-100'
               )}
               title="Mover deal"
@@ -120,8 +120,8 @@ export const DealCard: React.FC<DealCardProps> = ({
             </button>
 
             {menuOpen && (
-              <div className="absolute right-0 top-7 z-50 min-w-[170px] bg-[#1C1C1E] border border-[#3A3A3C] rounded-lg shadow-2xl overflow-hidden">
-                <div className="px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-stone-600 border-b border-[#3A3A3C]">
+              <div className="absolute right-0 top-7 z-50 min-w-[170px] bg-surface border border-border rounded-lg shadow-2xl overflow-hidden">
+                <div className="px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-stone-600 border-b border-border">
                   Mover para
                 </div>
                 {otherStages.length === 0 ? (
@@ -131,7 +131,7 @@ export const DealCard: React.FC<DealCardProps> = ({
                     <button
                       key={stage.id}
                       onClick={e => handleMove(stage.id, e)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-stone-300 hover:bg-white/5 hover:text-white transition-colors text-left"
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-text-main hover:bg-surface-hover transition-colors text-left"
                     >
                       <span
                         className="w-2 h-2 rounded-full shrink-0"
@@ -170,7 +170,7 @@ export const DealCard: React.FC<DealCardProps> = ({
       </div>
 
       {/* Footer: date + assigned */}
-      <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-white/5">
+      <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-border">
         <div className="flex items-center gap-1 text-[10px] text-stone-600">
           <Calendar size={9} />
           <span>
@@ -180,7 +180,7 @@ export const DealCard: React.FC<DealCardProps> = ({
 
         {deal.assigned_user && (
           <div
-            className="w-5 h-5 rounded-full bg-stone-700 flex items-center justify-center text-[9px] font-semibold text-stone-300 uppercase"
+            className="w-5 h-5 rounded-full bg-surface-hover border border-border flex items-center justify-center text-[9px] font-semibold text-text-muted uppercase"
             title={deal.assigned_user.full_name}
           >
             {deal.assigned_user.full_name.charAt(0)}

@@ -26,7 +26,7 @@ export const AdminSidebar: React.FC = () => {
           <div className="w-8 h-8 rounded bg-amber-500 text-background flex-center font-bold text-lg group-hover:rotate-12 transition-transform duration-500">
             <ShieldHalf size={20} />
           </div>
-          <span className="font-bold tracking-tight text-lg text-primary">SalesIA <span className="text-amber-500">Admin</span></span>
+          <span className="font-bold tracking-tight text-lg text-primary">Sia One <span className="text-amber-500">Admin</span></span>
         </div>
       </div>
 

@@ -38,7 +38,7 @@ async function linkUser(userId) {
 
 async function createAdmin() {
   const { data: user, error: authError } = await supabase.auth.admin.createUser({
-    email: 'admin@salesia.com',
+    email: 'admin@siaone.com',
     password: 'securepassword123',
     email_confirm: true,
     user_metadata: { full_name: 'Platform Admin' }
@@ -48,7 +48,7 @@ async function createAdmin() {
      if(authError.message.includes('already registered')) {
          console.log('User already exists, fetching them to link roles...');
          const { data: users } = await supabase.auth.admin.listUsers();
-         const existing = users.users.find(u => u.email === 'admin@salesia.com');
+        const existing = users.users.find(u => u.email === 'admin@siaone.com');
          if (existing) await linkUser(existing.id);
          return;
      }

@@ -19,7 +19,7 @@ export const KpiCard: React.FC<KpiCardProps> = ({ title, value, icon, trend, tre
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-[2rem] font-light tracking-tight text-white leading-none tabular-nums">
+        <span className="text-[2rem] font-light tracking-tight text-text-main leading-none tabular-nums">
           {value}
         </span>
         {trend && (

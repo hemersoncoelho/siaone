@@ -105,7 +105,7 @@ export const CompanyDashboard: React.FC = () => {
             </div>
             <button 
                 onClick={() => navigate('/deals')}
-                className="mt-6 w-full py-2 text-xs font-mono uppercase tracking-widest text-stone-400 hover:text-white transition-colors flex items-center justify-center gap-2 border border-border border-dashed rounded-lg"
+                className="mt-6 w-full py-2 text-xs font-mono uppercase tracking-widest text-text-muted hover:text-text-main transition-colors flex items-center justify-center gap-2 border border-border border-dashed rounded-lg"
             >
                 Ver Relatórios Completos
                 <ArrowRight size={14} />
@@ -171,13 +171,13 @@ export const CompanyDashboard: React.FC = () => {
 const QuickActionCard: React.FC<{ icon: React.ReactNode; title: string, description: string, onClick: () => void }> = ({ icon, title, description, onClick }) => (
     <button 
         onClick={onClick}
-        className="flex items-start gap-4 p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/[0.08] transition-all text-left group"
+        className="flex items-start gap-4 p-4 rounded-xl bg-surface border border-border hover:border-border hover:bg-surface-hover transition-all text-left group"
     >
         <div className="mt-1 p-2 rounded-lg bg-background border border-border group-hover:scale-110 transition-transform">
             {icon}
         </div>
         <div>
-            <h3 className="text-sm font-medium text-primary group-hover:text-white transition-colors">{title}</h3>
+            <h3 className="text-sm font-medium text-primary group-hover:text-text-main transition-colors">{title}</h3>
             <p className="text-xs text-text-muted mt-0.5 line-clamp-1">{description}</p>
         </div>
     </button>

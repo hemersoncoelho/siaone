@@ -35,7 +35,7 @@ export const SelectCompany: React.FC = () => {
           <div className="w-8 h-8 rounded bg-surface text-primary flex-center font-bold text-lg border border-border">
             S
           </div>
-          <span className="font-bold tracking-tight text-primary">SalesIA</span>
+          <span className="font-bold tracking-tight text-primary">Sia One</span>
         </div>
 
         <div className="text-right">

@@ -55,7 +55,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
             <span className="text-[10px] font-mono uppercase tracking-widest text-stone-600 block mb-1">
               01 / Inbox
             </span>
-            <h2 className="text-xl font-semibold tracking-tight text-white leading-none">
+            <h2 className="text-xl font-semibold tracking-tight text-text-main leading-none">
               Conversas
             </h2>
           </div>
@@ -107,7 +107,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
               onClick={() => setActiveFilter(tab.id)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all ${
                 activeFilter === tab.id
-                  ? 'bg-surface border border-border text-white shadow-sm'
+                  ? 'bg-surface border border-border text-text-main shadow-sm'
                   : 'text-stone-600 hover:text-stone-300'
               }`}
             >

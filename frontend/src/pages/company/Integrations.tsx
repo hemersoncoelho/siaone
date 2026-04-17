@@ -255,7 +255,7 @@ const IntegrationCard: React.FC<{ integration: Integration; onConnect: () => voi
 
       {/* Info */}
       <div>
-        <h3 className="text-base font-semibold text-primary group-hover:text-white transition-colors">
+        <h3 className="text-base font-semibold text-primary group-hover:text-text-main transition-colors">
           {integration.name}
         </h3>
         <p className="text-sm text-text-muted mt-1 leading-relaxed">{integration.description}</p>
@@ -276,7 +276,7 @@ const IntegrationCard: React.FC<{ integration: Integration; onConnect: () => voi
              onClick={onConnect}
              title={integration.id !== 'whatsapp' ? 'Em breve' : ''}
              disabled={integration.id !== 'whatsapp'}
-             className="w-full py-2 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium text-stone-300 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+             className="w-full py-2 rounded-lg bg-surface-hover hover:bg-border text-xs font-medium text-text-muted transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plug size={14} />
             {integration.status === 'pending' ? 'Continuar configuração' : 'Conectar'}

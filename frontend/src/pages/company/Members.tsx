@@ -168,10 +168,10 @@ export const MembersPage: React.FC = () => {
               </tr>
             ) : (
               filteredMembers.map((member) => (
-                <tr key={member.id} className="hover:bg-white/[0.02] transition-colors group">
+                <tr key={member.id} className="hover:bg-surface-hover transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-stone-800 flex items-center justify-center text-sm font-bold text-stone-500 group-hover:bg-stone-700 transition-colors">
+                      <div className="w-10 h-10 rounded-full bg-surface-hover border border-border flex items-center justify-center text-sm font-bold text-text-muted group-hover:bg-border transition-colors">
                         {(member.full_name || '?').charAt(0)}
                       </div>
                       <div>
@@ -186,7 +186,7 @@ export const MembersPage: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-xs font-mono">
                       <Shield size={14} className="text-stone-500" />
-                      <span className="bg-white/5 px-2 py-1 rounded-md text-stone-300 uppercase tracking-wider">
+                      <span className="bg-surface-hover px-2 py-1 rounded-md text-text-main uppercase tracking-wider">
                         {member.role}
                       </span>
                     </div>
@@ -209,7 +209,7 @@ export const MembersPage: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="p-2 hover:bg-white/5 rounded-lg text-stone-500 hover:text-primary transition-colors">
+                    <button className="p-2 hover:bg-surface-hover rounded-lg text-text-muted hover:text-primary transition-colors">
                       <MoreVertical size={18} />
                     </button>
                   </td>

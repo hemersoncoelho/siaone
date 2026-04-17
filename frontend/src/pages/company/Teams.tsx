@@ -161,9 +161,9 @@ export const TeamsPage: React.FC = () => {
             ))}
             <button
               onClick={() => setShowNewTeamModal(true)}
-              className="group border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center text-center hover:border-stone-500 hover:bg-white/[0.02] transition-all gap-4"
+              className="group border-2 border-dashed border-border rounded-2xl p-8 flex flex-col items-center justify-center text-center hover:border-stone-500 hover:bg-surface-hover transition-all gap-4"
             >
-              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-stone-600 group-hover:text-primary group-hover:bg-primary/10 transition-all">
+              <div className="w-12 h-12 rounded-full bg-surface-hover flex items-center justify-center text-text-muted group-hover:text-primary group-hover:bg-primary/10 transition-all">
                 <Plus size={24} />
               </div>
               <div>
@@ -193,13 +193,13 @@ const TeamCard: React.FC<{ team: Team }> = ({ team }) => (
       <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
         <Users size={24} />
       </div>
-      <button className="p-1.5 hover:bg-white/5 rounded-lg text-stone-500 hover:text-primary transition-colors">
+      <button className="p-1.5 hover:bg-surface-hover rounded-lg text-text-muted hover:text-primary transition-colors">
         <MoreVertical size={18} />
       </button>
     </div>
 
     <div>
-      <h3 className="text-lg font-bold text-primary group-hover:text-white transition-colors">{team.name}</h3>
+      <h3 className="text-lg font-bold text-primary group-hover:text-text-main transition-colors">{team.name}</h3>
       <p className="text-sm text-text-muted mt-2 line-clamp-2 leading-relaxed">
         {team.description ?? `Time ${team.name}`}
       </p>
@@ -208,26 +208,26 @@ const TeamCard: React.FC<{ team: Team }> = ({ team }) => (
     <div className="pt-6 border-t border-border flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 rounded-full bg-stone-800 flex items-center justify-center text-[10px] font-bold text-stone-500">
+          <div className="w-6 h-6 rounded-full bg-surface-hover border border-border flex items-center justify-center text-[10px] font-bold text-text-muted">
             {team.manager_name?.charAt(0) ?? '—'}
           </div>
           <div>
-            <p className="text-[10px] font-mono uppercase text-stone-500 tracking-wider">Responsável</p>
-            <p className="text-xs font-medium text-stone-300">{team.manager_name ?? 'Sem gerente'}</p>
+            <p className="text-[10px] font-mono uppercase text-text-muted tracking-wider">Responsável</p>
+            <p className="text-xs font-medium text-text-main">{team.manager_name ?? 'Sem gerente'}</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-[10px] font-mono uppercase text-stone-500 tracking-wider">Membros</p>
-          <p className="text-xs font-medium text-stone-300">{team.member_count}</p>
+          <p className="text-[10px] font-mono uppercase text-text-muted tracking-wider">Membros</p>
+          <p className="text-xs font-medium text-text-main">{team.member_count}</p>
         </div>
       </div>
 
       <div className="flex items-center gap-2">
-        <button className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium text-stone-300 transition-colors flex items-center justify-center gap-2">
+        <button className="flex-1 py-2 rounded-lg bg-surface-hover hover:bg-border text-xs font-medium text-text-muted transition-colors flex items-center justify-center gap-2">
           <Settings size={14} />
           Configurar
         </button>
-        <button className="flex-1 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium text-stone-300 transition-colors flex items-center justify-center gap-2">
+        <button className="flex-1 py-2 rounded-lg bg-surface-hover hover:bg-border text-xs font-medium text-text-muted transition-colors flex items-center justify-center gap-2">
           <ChevronRight size={14} />
           Detalhes
         </button>

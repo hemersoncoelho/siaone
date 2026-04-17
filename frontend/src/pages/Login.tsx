@@ -60,7 +60,7 @@ export const Login: React.FC = () => {
              <div className="absolute inset-0 bg-primary/5 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
              <Box size={32} className="text-primary z-10" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-primary">SalesIA</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-primary">Sia One</h1>
           <p className="text-sm font-mono uppercase text-text-muted mt-2 tracking-widest text-center">
             Digital Architecture <br/> for Sales
           </p>
@@ -128,7 +128,7 @@ export const Login: React.FC = () => {
           
           <div className="mt-8 text-center border-t border-border pt-6">
             <span className="text-[10px] font-mono uppercase text-stone-600 tracking-widest">
-              SalesIA © 2026
+              Sia One © 2026
             </span>
           </div>
         </div>

@@ -111,7 +111,7 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
           <button
             onClick={onClose}
             disabled={loading}
-            className="text-stone-400 hover:text-white transition-colors p-2 rounded-md hover:bg-surface"
+            className="text-text-muted hover:text-text-main transition-colors p-2 rounded-md hover:bg-surface-hover"
           >
             <X size={20} />
           </button>
@@ -225,7 +225,7 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="flex-1 py-2.5 text-sm text-stone-400 hover:text-white border border-border rounded-lg transition-colors disabled:opacity-50"
+              className="flex-1 py-2.5 text-sm text-text-muted hover:text-text-main border border-border rounded-lg transition-colors disabled:opacity-50"
             >
               Cancelar
             </button>

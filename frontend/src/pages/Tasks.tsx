@@ -119,7 +119,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onStatusChange }) => {
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className="absolute top-7 left-0 z-20 bg-stone-900 border border-stone-700 rounded-lg shadow-2xl py-1.5 w-48 min-w-max">
+            <div className="absolute top-7 left-0 z-20 bg-surface border border-border rounded-lg shadow-2xl py-1.5 w-48 min-w-max">
               {ALL_STATUSES.map((s) => (
                 <button
                   key={s}
@@ -127,8 +127,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onStatusChange }) => {
                     onStatusChange(task.id, s);
                     setMenuOpen(false);
                   }}
-                  className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-stone-800 flex items-center gap-2.5 ${
-                    task.status === s ? 'text-white' : 'text-stone-300'
+                  className={`w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-surface-hover flex items-center gap-2.5 ${
+                    task.status === s ? 'text-text-main' : 'text-text-muted'
                   }`}
                 >
                   <span

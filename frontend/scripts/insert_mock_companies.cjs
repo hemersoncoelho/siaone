@@ -9,7 +9,7 @@ async function run() {
     { id: 'c3333333-3333-3333-3333-333333333333', name: 'Initech', is_active: true }
   ]);
   const { data: users } = await supabase.auth.admin.listUsers();
-  const existing = users.users.find(u => u.email === 'admin@salesia.com');
+  const existing = users.users.find(u => u.email === 'admin@siaone.com');
   if(existing) {
      await supabase.from('user_companies').upsert({ user_id: existing.id, company_id: 'c1111111-1111-1111-1111-111111111111', role_in_company: 'platform_admin' });
      console.log('Linked admin to Acme Corp');

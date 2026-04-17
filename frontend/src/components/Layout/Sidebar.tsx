@@ -120,7 +120,7 @@ export const Sidebar: React.FC = () => {
         >
           S
         </div>
-        <span className="sidebar-tooltip">SalesIA</span>
+        <span className="sidebar-tooltip">Sia One</span>
       </div>
 
       {/* ─── Navigation groups ─── */}

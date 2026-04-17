@@ -179,7 +179,7 @@ export const Deals: React.FC = () => {
     <div className="flex flex-col reveal active" style={{ height: 'calc(100vh - 112px)' }}>
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-[#27272A] pb-5 mb-5 gap-4 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-border pb-5 mb-5 gap-4 shrink-0">
         <div>
           <span className="text-[11px] font-mono uppercase text-stone-500 block mb-2 tracking-widest">
             Funil de Vendas
@@ -192,7 +192,7 @@ export const Deals: React.FC = () => {
 
         <div className="flex items-center gap-3 flex-wrap shrink-0">
           {/* Status filter tabs */}
-          <div className="flex bg-[#141415] border border-[#27272A] rounded-lg p-1 gap-1">
+          <div className="flex bg-surface border border-border rounded-lg p-1 gap-1">
             {STATUS_OPTIONS.map(opt => (
               <button
                 key={opt.value}
@@ -213,7 +213,7 @@ export const Deals: React.FC = () => {
           <button
             onClick={fetchData}
             disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 text-[11px] font-mono uppercase tracking-widest text-stone-500 hover:text-white border border-[#27272A] rounded-lg hover:bg-white/5 transition-all disabled:opacity-40"
+            className="flex items-center gap-2 px-3 py-2 text-[11px] font-mono uppercase tracking-widest text-text-muted hover:text-text-main border border-border rounded-lg hover:bg-surface-hover transition-all disabled:opacity-40"
           >
             <RefreshCw size={12} className={cn(loading && 'animate-spin')} />
             Atualizar
@@ -268,20 +268,20 @@ export const Deals: React.FC = () => {
           <div className="flex gap-5 h-full overflow-x-auto pb-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="w-72 shrink-0 flex flex-col gap-2">
-                <div className="h-0.5 bg-white/10 rounded animate-pulse mb-3" />
+                <div className="h-0.5 bg-border rounded animate-pulse mb-3" />
                 <div className="flex items-center justify-between mb-2 px-0.5">
-                  <div className="h-3.5 w-24 bg-white/[0.06] rounded animate-pulse" />
-                  <div className="h-3 w-12 bg-white/[0.04] rounded animate-pulse" />
+                  <div className="h-3.5 w-24 bg-surface-hover rounded animate-pulse" />
+                  <div className="h-3 w-12 bg-surface-hover rounded animate-pulse" />
                 </div>
                 {Array.from({ length: 3 }).map((_, j) => (
                   <div
                     key={j}
-                    className="bg-[#141415] border border-[#27272A] rounded-lg p-3.5 animate-pulse"
+                    className="bg-surface border border-border rounded-lg p-3.5 animate-pulse"
                     style={{ animationDelay: `${j * 80}ms` }}
                   >
-                    <div className="h-3 bg-white/[0.08] rounded w-4/5 mb-3" />
-                    <div className="h-3 bg-white/[0.05] rounded w-1/3 mb-4" />
-                    <div className="h-2.5 bg-white/[0.03] rounded w-2/5" />
+                    <div className="h-3 bg-surface-hover rounded w-4/5 mb-3" />
+                    <div className="h-3 bg-surface-hover rounded w-1/3 mb-4" />
+                    <div className="h-2.5 bg-surface-hover rounded w-2/5" />
                   </div>
                 ))}
               </div>
@@ -291,7 +291,7 @@ export const Deals: React.FC = () => {
           /* Empty state — no stages configured */
           <div className="flex-center h-full">
             <div className="text-center max-w-sm">
-              <div className="w-16 h-16 bg-[#141415] border border-[#27272A] rounded-full flex-center mx-auto mb-5">
+              <div className="w-16 h-16 bg-surface border border-border rounded-full flex-center mx-auto mb-5">
                 <Kanban size={24} className="text-stone-600" />
               </div>
               <h3 className="text-lg font-medium text-primary mb-2">Pipeline sem estágios</h3>
@@ -319,7 +319,7 @@ export const Deals: React.FC = () => {
           /* Full board */
           <div
             className="flex gap-5 h-full overflow-x-auto pb-4 items-start pt-1"
-            style={{ scrollbarWidth: 'thin', scrollbarColor: '#27272A transparent' }}
+            style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--border-color) transparent' }}
           >
             {stages.map(stage => (
               <StageColumn
@@ -344,7 +344,7 @@ export const Deals: React.FC = () => {
             'flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-2xl border',
             'text-sm font-medium transition-all',
             toast.type === 'success'
-              ? 'bg-[#1C1C1E] border-[#3A3A3C] text-stone-200'
+              ? 'bg-surface border-border text-text-main'
               : 'bg-rose-950 border-rose-800/60 text-rose-300'
           )}
         >

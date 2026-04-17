@@ -1,6 +1,6 @@
 -- ============================================================
 -- analytics_layer_etapa2.sql
--- SalesIA — Camada Analítica — Etapa 2
+-- Sia One — Camada Analítica — Etapa 2
 -- Governança, Confiabilidade Histórica e Performance
 -- Data: 2026-03-18
 -- ============================================================

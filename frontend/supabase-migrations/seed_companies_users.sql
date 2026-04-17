@@ -34,7 +34,7 @@ INSERT INTO auth.users (
   'a0000001-0000-0000-0000-000000000002',
   '00000000-0000-0000-0000-000000000000',
   'authenticated', 'authenticated',
-  'ana.ferreira@salesia-demo.com',
+  'ana.ferreira@siaone-demo.com',
   '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
   now(),
   '{"full_name": "Ana Ferreira"}'::jsonb,
@@ -45,7 +45,7 @@ INSERT INTO public.profiles (user_id, full_name, email, platform_role, is_active
 VALUES (
   'a0000001-0000-0000-0000-000000000002',
   'Ana Ferreira',
-  'ana.ferreira@salesia-demo.com',
+  'ana.ferreira@siaone-demo.com',
   'platform_support',
   true
 ) ON CONFLICT (user_id) DO NOTHING;

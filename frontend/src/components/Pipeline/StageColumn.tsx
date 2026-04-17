@@ -76,7 +76,7 @@ export const StageColumn: React.FC<StageColumnProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-primary">{stage.name}</h3>
-            <span className="text-[11px] font-mono bg-white/[0.06] text-stone-400 rounded-md px-1.5 py-0.5 min-w-[22px] text-center leading-5">
+            <span className="text-[11px] font-mono bg-surface-hover text-text-muted rounded-md px-1.5 py-0.5 min-w-[22px] text-center leading-5">
               {deals.length}
             </span>
           </div>
@@ -94,12 +94,12 @@ export const StageColumn: React.FC<StageColumnProps> = ({
         onDrop={canMove ? handleDrop : undefined}
         className={cn(
           'flex flex-col gap-2 overflow-y-auto flex-1 pr-0.5 rounded-lg transition-all duration-150',
-          isDragOver && 'bg-white/[0.03] ring-1 ring-inset ring-white/10'
+          isDragOver && 'bg-surface-hover ring-1 ring-inset ring-border'
         )}
         style={{
           maxHeight: 'calc(100vh - 270px)',
           scrollbarWidth: 'thin',
-          scrollbarColor: '#27272A transparent',
+          scrollbarColor: 'var(--border-color) transparent',
         }}
       >
         {deals.length === 0 ? (
@@ -108,8 +108,8 @@ export const StageColumn: React.FC<StageColumnProps> = ({
               'flex items-center justify-center h-20 border border-dashed rounded-lg',
               'text-[10px] font-mono uppercase tracking-widest transition-all duration-150',
               isDragOver
-                ? 'border-stone-500 text-stone-500 bg-white/[0.03]'
-                : 'border-[#27272A] text-stone-700'
+                ? 'border-stone-500 text-stone-500 bg-surface-hover'
+                : 'border-border text-text-muted'
             )}
           >
             {isDragOver ? 'Soltar aqui' : 'Sem negócios'}

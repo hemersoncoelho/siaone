@@ -67,7 +67,7 @@ export const NewCompanyModal: React.FC<NewCompanyModalProps> = ({
           <button
             onClick={onClose}
             disabled={loading}
-            className="text-stone-400 hover:text-white transition-colors p-2 rounded-md hover:bg-surface"
+            className="text-text-muted hover:text-text-main transition-colors p-2 rounded-md hover:bg-surface-hover"
           >
             <X size={20} />
           </button>

@@ -154,6 +154,17 @@ export type ConversationStatus = 'open' | 'closed' | 'pending';
 export type ConversationPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type MessageSenderType = 'contact' | 'agent' | 'system' | 'bot';
 export type MessageStatus = 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'received';
+export type MessageType =
+  | 'text'
+  | 'audio'
+  | 'image'
+  | 'video'
+  | 'document'
+  | 'sticker'
+  | 'location'
+  | 'contact_card'
+  | 'reaction'
+  | 'unknown';
 
 export interface Message {
   id: string;
@@ -162,6 +173,11 @@ export interface Message {
   sender_id?: string;
   sender_name?: string;
   body: string;
+  message_type: MessageType;
+  media_url?: string | null;
+  media_mime_type?: string | null;
+  media_filename?: string | null;
+  metadata?: Record<string, unknown> | null;
   status: MessageStatus;
   is_internal: boolean;
   ai_agent_id?: string;

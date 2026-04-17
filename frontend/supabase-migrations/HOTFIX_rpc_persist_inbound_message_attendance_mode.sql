@@ -1,8 +1,11 @@
 -- ============================================================
--- RPC: rpc_persist_inbound_message
--- 
--- Modificado para suportar o Human Handoff (se for outbound, 
--- não incrementa unread e desativa a IA da conversa)
+-- HOTFIX: rpc_persist_inbound_message — attendance_mode_enum
+--
+-- Bug: a função usava 'bot' ao criar novas conversas inbound,
+-- mas o enum attendance_mode_enum só aceita: 'human', 'ai', 'hybrid'
+-- Fix: substituído 'bot' por 'ai'
+--
+-- Aplicar no SQL Editor do Supabase (projeto phlgzzjyzkgvveqevqbg)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.rpc_persist_inbound_message(
@@ -69,15 +72,15 @@ BEGIN
   ORDER BY created_at DESC LIMIT 1;
 
   IF v_conversation_id IS NULL THEN
-    -- A nova conversa começa sempre com attendance_mode bot_ativo se for inbound, ou human_ativo se o humano que iniciou
     INSERT INTO conversations (company_id, contact_id, channel, status, priority, unread_count, attendance_mode, ai_paused_at)
     VALUES (
-      p_company_id, 
-      v_contact_id, 
-      'whatsapp', 
-      'open'::conversation_status_enum, 
-      'normal'::priority_enum, 
+      p_company_id,
+      v_contact_id,
+      'whatsapp',
+      'open'::conversation_status_enum,
+      'normal'::priority_enum,
       0,
+      -- FIX: era 'bot' (inválido), agora usa 'ai' para inbound e 'human' para outbound
       CASE WHEN p_direction = 'outbound' THEN 'human'::attendance_mode_enum ELSE 'ai'::attendance_mode_enum END,
       CASE WHEN p_direction = 'outbound' THEN p_timestamp ELSE NULL END
     )
@@ -108,53 +111,42 @@ BEGIN
   ) RETURNING id INTO v_message_id;
 
   -- 4. Atualizar conversa (Regra do Human Handoff)
-  
-  -- Preview bonitinho
+
   v_preview := CASE
-    WHEN p_message_type = 'text' THEN LEFT(p_body, 200)
-    WHEN p_message_type = 'audio' THEN '🎵 Áudio'
-    WHEN p_message_type = 'image' THEN '📷 Imagem'
-    WHEN p_message_type = 'video' THEN '🎥 Vídeo'
+    WHEN p_message_type = 'text'     THEN LEFT(p_body, 200)
+    WHEN p_message_type = 'audio'    THEN '🎵 Áudio'
+    WHEN p_message_type = 'image'    THEN '📷 Imagem'
+    WHEN p_message_type = 'video'    THEN '🎥 Vídeo'
     WHEN p_message_type = 'document' THEN '📄 Documento'
     ELSE LEFT(COALESCE(p_body, '[' || p_message_type || ']'), 200)
   END;
 
-  -- Se foi você quem mandou a mensagem (pelo Front ou Whatsapp app):
   IF p_direction = 'outbound' THEN
-    v_unread_inc := 0; -- Humanos falando não aumenta o badge de "não lidas" (pois o humano que escreveu)
-    v_now_human := TRUE; -- Corta o botão da IA (muda pra human)
+    v_unread_inc := 0;
+    v_now_human  := TRUE;
   ELSE
     v_unread_inc := 1;
-    v_now_human := FALSE;
+    v_now_human  := FALSE;
   END IF;
 
-  -- Atualiza!
   UPDATE conversations
-  SET 
-    last_message_at = p_timestamp, 
+  SET
+    last_message_at      = p_timestamp,
     last_message_preview = v_preview,
-    unread_count = CASE WHEN p_direction = 'outbound' THEN 0 ELSE unread_count + 1 END,
-    updated_at = NOW(),
-    -- Regra Magica:
-    attendance_mode = CASE 
-      WHEN v_now_human THEN 'human'::attendance_mode_enum 
-      ELSE attendance_mode 
-    END,
-    ai_paused_at = CASE 
-      WHEN v_now_human THEN COALESCE(ai_paused_at, NOW())
-      ELSE ai_paused_at
-    END
+    unread_count         = CASE WHEN p_direction = 'outbound' THEN 0 ELSE unread_count + 1 END,
+    updated_at           = NOW(),
+    attendance_mode      = CASE WHEN v_now_human THEN 'human'::attendance_mode_enum ELSE attendance_mode END,
+    ai_paused_at         = CASE WHEN v_now_human THEN COALESCE(ai_paused_at, NOW()) ELSE ai_paused_at END
   WHERE id = v_conversation_id;
 
-  -- 5. Finalizar e Retornar se o Bot deve atuar ou nao
+  -- 5. Retornar resultado
   RETURN jsonb_build_object(
-    'message_id', v_message_id,
-    'contact_id', v_contact_id,
-    'conversation_id', v_conversation_id,
-    'is_new_contact', v_is_new_contact,
+    'message_id',        v_message_id,
+    'contact_id',        v_contact_id,
+    'conversation_id',   v_conversation_id,
+    'is_new_contact',    v_is_new_contact,
     'is_new_conversation', v_is_new_conv,
-    -- Nós devolvemos essa flag pra dizer pro n8n parar ali ou continuar pra openai
-    'should_ai_answer', CASE WHEN v_now_human THEN false ELSE true END
+    'should_ai_answer',  CASE WHEN v_now_human THEN false ELSE true END
   );
 END;
 $$;

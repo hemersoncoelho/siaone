@@ -148,7 +148,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({ isOp
           </div>
           <button 
              onClick={onClose}
-             className="text-stone-400 hover:text-white transition-colors p-2 rounded-md hover:bg-surface"
+             className="text-text-muted hover:text-text-main transition-colors p-2 rounded-md hover:bg-surface-hover"
           >
             <X size={20} />
           </button>
@@ -269,7 +269,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({ isOp
                 </div>
                 <button 
                   onClick={onClose}
-                  className="px-6 py-2.5 bg-surface border border-border hover:bg-white/5 text-primary text-sm font-medium rounded-lg transition-colors"
+                  className="px-6 py-2.5 bg-surface border border-border hover:bg-surface-hover text-primary text-sm font-medium rounded-lg transition-colors"
                 >
                   Concluir
                 </button>
@@ -287,7 +287,7 @@ export const WhatsAppConnectModal: React.FC<WhatsAppConnectModalProps> = ({ isOp
                 </div>
                 <button 
                   onClick={checkInitialStatus}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-surface border border-border hover:bg-white/5 text-primary text-sm font-medium rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-6 py-2.5 bg-surface border border-border hover:bg-surface-hover text-primary text-sm font-medium rounded-lg transition-colors"
                 >
                   <RefreshCw size={16} /> Tentar Novamente
                 </button>

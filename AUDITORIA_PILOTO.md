@@ -1,4 +1,4 @@
-# Auditoria de Prontidão para Piloto — SalesIA
+# Auditoria de Prontidão para Piloto — Sia One
 
 **Data:** 17/03/2025  
 **Objetivo:** Avaliar se o sistema está pronto para um teste piloto com cliente real.
@@ -9,7 +9,7 @@
 
 ### Visão geral do estado atual
 
-O SalesIA é um SaaS de operação comercial com Inbox unificado, CRM (Leads/Contatos), Pipeline de vendas, Tarefas, Agentes de IA e gestão de equipe/times. A arquitetura usa React + Vite no frontend e Supabase (Postgres + Auth + Realtime) no backend.
+O Sia One é um SaaS de operação comercial com Inbox unificado, CRM (Leads/Contatos), Pipeline de vendas, Tarefas, Agentes de IA e gestão de equipe/times. A arquitetura usa React + Vite no frontend e Supabase (Postgres + Auth + Realtime) no backend.
 
 **Pontos fortes:**
 - Fluxos principais (Login, SelectCompany, Home, Dashboard, Inbox, Deals, Tasks, Contacts) estão implementados com dados reais do banco

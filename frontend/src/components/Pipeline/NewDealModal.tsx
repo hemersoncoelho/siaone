@@ -83,18 +83,18 @@ export const NewDealModal: React.FC<NewDealModalProps> = ({
     }
   };
 
-  const inputCls = 'w-full bg-[#1C1C1E] border border-[#3A3A3C] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-stone-500 transition-colors';
+  const inputCls = 'w-full bg-surface-hover border border-border rounded-lg px-3 py-2.5 text-sm text-text-main placeholder:text-text-muted focus:outline-none focus:border-text-muted transition-colors';
 
   return (
     <>
       <div className="fixed inset-0 bg-black/70 z-40 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-[#141415] border border-[#27272A] rounded-2xl shadow-2xl p-6">
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-surface border border-border rounded-2xl shadow-2xl p-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="text-base font-semibold text-white">Novo Negócio</h2>
+            <h2 className="text-base font-semibold text-text-main">Novo Negócio</h2>
             <p className="text-[11px] text-stone-500 mt-0.5">Pipeline Comercial</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 text-stone-500 hover:text-white transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -171,7 +171,7 @@ export const NewDealModal: React.FC<NewDealModalProps> = ({
           )}
 
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm text-stone-400 hover:text-white border border-[#27272A] hover:border-stone-500 rounded-lg transition-all">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm text-text-muted hover:text-text-main border border-border rounded-lg transition-all">
               Cancelar
             </button>
             <button

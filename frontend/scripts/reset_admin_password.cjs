@@ -4,23 +4,23 @@ const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABAS
 
 async function run() {
   const { data: users } = await supabase.auth.admin.listUsers();
-  const existing = users.users.find(u => u.email === 'admin@salesia.com');
+  const existing = users.users.find(u => u.email === 'admin@siaone.com');
   if(existing) {
      const { data, error } = await supabase.auth.admin.updateUserById(
        existing.id,
        { password: 'securepassword123' }
      );
      if (error) console.error('Failed to update password:', error);
-     else console.log('Successfully reset password for admin@salesia.com to securepassword123');
+    else console.log('Successfully reset password for admin@siaone.com to securepassword123');
   } else {
      console.log('Admin user not found. Creating one.');
      const { data, error } = await supabase.auth.admin.createUser({
-       email: 'admin@salesia.com',
+      email: 'admin@siaone.com',
        password: 'securepassword123',
        email_confirm: true
      });
      if (error) console.error('Failed to create user:', error);
-     else console.log('Successfully created admin@salesia.com');
+    else console.log('Successfully created admin@siaone.com');
   }
 }
 run();

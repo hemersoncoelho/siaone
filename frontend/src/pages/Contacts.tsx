@@ -113,16 +113,16 @@ const ContactDetailPanel: React.FC<ContactDetailPanelProps> = ({ contact, onClos
   return (
     <>
       <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-full max-w-[420px] bg-[#141415] border-l border-[#27272A] z-50 flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-right duration-300">
+      <div className="fixed right-0 top-0 h-full w-full max-w-[420px] bg-surface border-l border-border z-50 flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-right duration-300">
 
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 p-5 border-b border-[#27272A] shrink-0">
+        <div className="flex items-start justify-between gap-4 p-5 border-b border-border shrink-0">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-white/[0.08] border border-[#27272A] flex items-center justify-center text-sm font-bold text-stone-300 uppercase shrink-0">
+            <div className="w-12 h-12 rounded-full bg-surface-hover border border-border flex items-center justify-center text-sm font-bold text-text-muted uppercase shrink-0">
               {getInitials(contact.full_name)}
             </div>
             <div>
-              <h2 className="text-base font-semibold text-white leading-snug">
+              <h2 className="text-base font-semibold text-text-main leading-snug">
                 {contact.full_name || 'Sem nome'}
               </h2>
               <span className={cn(
@@ -136,14 +136,14 @@ const ContactDetailPanel: React.FC<ContactDetailPanelProps> = ({ contact, onClos
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-white/10 text-stone-500 hover:text-white transition-colors shrink-0"
+            className="p-2 rounded-lg hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors shrink-0"
           >
             <X size={16} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto divide-y divide-[#27272A]" style={{ scrollbarWidth: 'thin', scrollbarColor: '#27272A transparent' }}>
+        <div className="flex-1 overflow-y-auto divide-y divide-border" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--border-color) transparent' }}>
 
           {/* Canais de contato */}
           {contact.contact_identities.length > 0 && (
@@ -162,7 +162,7 @@ const ContactDetailPanel: React.FC<ContactDetailPanelProps> = ({ contact, onClos
                         {CHANNEL_ICON[ch] ?? <Hash size={12} />}
                         {ch}
                       </span>
-                      <span className="text-sm text-stone-300 font-mono truncate">{val}</span>
+                      <span className="text-sm text-text-main font-mono truncate">{val}</span>
                     </div>
                   );
                 })}
@@ -174,7 +174,7 @@ const ContactDetailPanel: React.FC<ContactDetailPanelProps> = ({ contact, onClos
           {contact.source && (
             <div className="p-5">
               <p className="text-[10px] font-mono uppercase tracking-widest text-stone-600 mb-1.5">Origem</p>
-              <p className="text-sm text-stone-300">{contact.source}</p>
+              <p className="text-sm text-text-main">{contact.source}</p>
             </div>
           )}
 
@@ -182,7 +182,7 @@ const ContactDetailPanel: React.FC<ContactDetailPanelProps> = ({ contact, onClos
           {contact.notes && (
             <div className="p-5">
               <p className="text-[10px] font-mono uppercase tracking-widest text-stone-600 mb-1.5">Notas</p>
-              <p className="text-sm text-stone-300 leading-relaxed whitespace-pre-wrap">{contact.notes}</p>
+              <p className="text-sm text-text-main leading-relaxed whitespace-pre-wrap">{contact.notes}</p>
             </div>
           )}
 
@@ -190,12 +190,12 @@ const ContactDetailPanel: React.FC<ContactDetailPanelProps> = ({ contact, onClos
           <div className="p-5">
             <p className="text-[10px] font-mono uppercase tracking-widest text-stone-600 mb-4">Linha do Tempo</p>
             <div className="relative space-y-4 pl-4">
-              <div className="absolute left-1.5 top-1 bottom-1 w-px bg-[#27272A]" />
+              <div className="absolute left-1.5 top-1 bottom-1 w-px bg-border" />
 
               <div className="relative flex items-start gap-3">
-                <div className="absolute -left-[11px] w-2 h-2 rounded-full bg-[#27272A] border border-[#3A3A3C] mt-1 shrink-0" />
+                <div className="absolute -left-[11px] w-2 h-2 rounded-full bg-border border border-border mt-1 shrink-0" />
                 <div>
-                  <p className="text-xs font-medium text-stone-300">Contato criado</p>
+                  <p className="text-xs font-medium text-text-main">Contato criado</p>
                   <div className="flex items-center gap-1.5 mt-1 text-[11px] text-stone-600">
                     <Calendar size={10} />
                     <span>{formatDate(contact.created_at)}</span>
@@ -207,7 +207,7 @@ const ContactDetailPanel: React.FC<ContactDetailPanelProps> = ({ contact, onClos
                 <div className="relative flex items-start gap-3">
                   <div className="absolute -left-[11px] w-2 h-2 rounded-full bg-stone-700 border border-stone-600 mt-1 shrink-0" />
                   <div>
-                    <p className="text-xs font-medium text-stone-300">Última interação</p>
+                    <p className="text-xs font-medium text-text-main">Última interação</p>
                     <div className="flex items-center gap-1.5 mt-1 text-[11px] text-stone-600">
                       <Calendar size={10} />
                       <span>{formatDate(contact.last_interaction_at)}</span>
@@ -220,7 +220,7 @@ const ContactDetailPanel: React.FC<ContactDetailPanelProps> = ({ contact, onClos
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[#27272A] shrink-0">
+        <div className="p-4 border-t border-border shrink-0">
           <p className="text-[10px] text-stone-700 font-mono text-center">
             ID: {contact.id.slice(0, 8).toUpperCase()}
           </p>
@@ -287,15 +287,15 @@ const NewContactModal: React.FC<NewContactModalProps> = ({ companyId, onClose, o
     }
   };
 
-  const inputCls = 'w-full bg-[#1C1C1E] border border-[#3A3A3C] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-stone-500 transition-colors';
+  const inputCls = 'w-full bg-surface-hover border border-border rounded-lg px-3 py-2.5 text-sm text-text-main placeholder:text-text-muted focus:outline-none focus:border-text-muted transition-colors';
 
   return (
     <>
       <div className="fixed inset-0 bg-black/70 z-40 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-[#141415] border border-[#27272A] rounded-2xl shadow-2xl p-6">
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-surface border border-border rounded-2xl shadow-2xl p-6">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-semibold text-white">Novo Contato</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 text-stone-500 hover:text-white transition-colors">
+          <h2 className="text-base font-semibold text-text-main">Novo Contato</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-hover text-text-muted hover:text-text-main transition-colors">
             <X size={16} />
           </button>
         </div>
@@ -349,7 +349,7 @@ const NewContactModal: React.FC<NewContactModalProps> = ({ companyId, onClose, o
           )}
 
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm text-stone-400 hover:text-white border border-[#27272A] hover:border-stone-500 rounded-lg transition-all">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 text-sm text-text-muted hover:text-text-main border border-border rounded-lg transition-all">
               Cancelar
             </button>
             <button
@@ -383,16 +383,16 @@ const ContactRow: React.FC<ContactRowProps> = ({ contact, onSelect }) => {
   return (
     <button
       onClick={() => onSelect(contact)}
-      className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-white/[0.03] border-b border-[#1F1F21] transition-colors group text-left"
+      className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-surface-hover border-b border-border transition-colors group text-left"
     >
       {/* Avatar */}
-      <div className="w-9 h-9 rounded-full bg-white/[0.06] border border-[#27272A] flex items-center justify-center text-xs font-semibold text-stone-300 uppercase shrink-0">
+      <div className="w-9 h-9 rounded-full bg-surface-hover border border-border flex items-center justify-center text-xs font-semibold text-text-muted uppercase shrink-0">
         {getInitials(contact.full_name)}
       </div>
 
       {/* Name + identifier */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white truncate">{contact.full_name || 'Sem nome'}</p>
+        <p className="text-sm font-medium text-text-main truncate">{contact.full_name || 'Sem nome'}</p>
         {displayVal && (
           <p className="text-[11px] text-stone-500 truncate mt-0.5 font-mono">{displayVal}</p>
         )}
@@ -527,12 +527,12 @@ export const Contacts: React.FC = () => {
     <div className="flex flex-col reveal active" style={{ height: 'calc(100vh - 112px)' }}>
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-[#27272A] pb-5 mb-5 gap-4 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-border pb-5 mb-5 gap-4 shrink-0">
         <div>
           <span className="text-[11px] font-mono uppercase text-stone-500 block mb-2 tracking-widest">
             CRM
           </span>
-          <h1 className="text-3xl font-medium tracking-tight text-white flex items-center gap-3">
+          <h1 className="text-3xl font-medium tracking-tight text-text-main flex items-center gap-3">
             <Users size={26} className="text-stone-500 shrink-0" />
             Leads
           </h1>
@@ -542,7 +542,7 @@ export const Contacts: React.FC = () => {
           <button
             onClick={fetchContacts}
             disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 text-[11px] font-mono uppercase tracking-widest text-stone-500 hover:text-white border border-[#27272A] rounded-lg hover:bg-white/5 transition-all disabled:opacity-40"
+            className="flex items-center gap-2 px-3 py-2 text-[11px] font-mono uppercase tracking-widest text-text-muted hover:text-text-main border border-border rounded-lg hover:bg-surface-hover transition-all disabled:opacity-40"
           >
             <RefreshCw size={12} className={cn(loading && 'animate-spin')} />
             Atualizar
@@ -560,7 +560,7 @@ export const Contacts: React.FC = () => {
       {/* ── Stage filter tabs + search ── */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4 shrink-0">
         {/* Stage tabs */}
-        <div className="flex bg-[#141415] border border-[#27272A] rounded-lg p-1 gap-1 flex-wrap">
+        <div className="flex bg-surface border border-border rounded-lg p-1 gap-1 flex-wrap">
           <button
             onClick={() => setStageFilter('all')}
             className={cn(
@@ -597,7 +597,7 @@ export const Contacts: React.FC = () => {
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder='Buscar contato... ( / )'
-            className="w-full bg-[#141415] border border-[#27272A] rounded-lg pl-9 pr-8 py-2 text-sm text-white placeholder:text-stone-600 focus:outline-none focus:border-stone-500 transition-colors"
+            className="w-full bg-surface border border-border rounded-lg pl-9 pr-8 py-2 text-sm text-text-main placeholder:text-text-muted focus:outline-none focus:border-text-muted transition-colors"
           />
           {searchQuery && (
             <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-600 hover:text-stone-400">
@@ -619,9 +619,9 @@ export const Contacts: React.FC = () => {
       )}
 
       {/* ── Table ── */}
-      <div className="flex-1 overflow-hidden bg-[#141415] border border-[#27272A] rounded-xl">
+      <div className="flex-1 overflow-hidden bg-surface border border-border rounded-xl">
         {/* Table header */}
-        <div className="flex items-center gap-4 px-5 py-3 border-b border-[#27272A] shrink-0">
+        <div className="flex items-center gap-4 px-5 py-3 border-b border-border shrink-0">
           <div className="w-9 shrink-0" />
           <div className="flex-1 text-[10px] font-mono uppercase tracking-widest text-stone-600">Nome</div>
           <div className="hidden sm:block w-28 text-[10px] font-mono uppercase tracking-widest text-stone-600">Estágio</div>
@@ -634,18 +634,18 @@ export const Contacts: React.FC = () => {
         <div className="overflow-y-auto h-[calc(100%-41px)]" style={{ scrollbarWidth: 'thin', scrollbarColor: '#27272A transparent' }}>
           {loading ? (
             Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-5 py-3.5 border-b border-[#1F1F21] animate-pulse">
-                <div className="w-9 h-9 rounded-full bg-white/[0.06] shrink-0" />
+              <div key={i} className="flex items-center gap-4 px-5 py-3.5 border-b border-border animate-pulse">
+                <div className="w-9 h-9 rounded-full bg-surface-hover shrink-0" />
                 <div className="flex-1 space-y-1.5">
-                  <div className="h-3 bg-white/[0.06] rounded w-1/3" />
-                  <div className="h-2.5 bg-white/[0.04] rounded w-1/4" />
+                  <div className="h-3 bg-surface-hover rounded w-1/3" />
+                  <div className="h-2.5 bg-surface-hover rounded w-1/4" />
                 </div>
-                <div className="hidden sm:block h-5 w-24 bg-white/[0.04] rounded" />
+                <div className="hidden sm:block h-5 w-24 bg-surface-hover rounded" />
               </div>
             ))
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-center">
-              <div className="w-14 h-14 rounded-full bg-white/[0.04] border border-dashed border-[#27272A] flex items-center justify-center mb-4">
+              <div className="w-14 h-14 rounded-full bg-surface-hover border border-dashed border-border flex items-center justify-center mb-4">
                 <Users size={22} className="text-stone-600" />
               </div>
               <p className="text-sm font-medium text-stone-500 mb-1">

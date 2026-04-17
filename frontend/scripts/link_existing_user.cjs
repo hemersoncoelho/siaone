@@ -5,7 +5,7 @@ const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABAS
 
 async function linkUser() {
   const { data: users } = await supabase.auth.admin.listUsers();
-  const existing = users.users.find(u => u.email === 'admin@salesia.com');
+  const existing = users.users.find(u => u.email === 'admin@siaone.com');
   
   if (!existing) {
      console.error('User not found!');
