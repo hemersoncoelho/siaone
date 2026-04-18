@@ -91,10 +91,10 @@ const fmtShort = (val: number): string => {
 const DarkTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-xs shadow-2xl">
+    <div className="bg-surface border border-border rounded-lg px-3 py-2 text-xs shadow-xl">
       {label && <p className="text-stone-500 mb-1 font-mono">{label}</p>}
       {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.color || p.fill || '#fff' }}>
+        <p key={i} style={{ color: p.color || p.fill }} className="text-text-main">
           {p.name ? `${p.name}: ` : ''}
           <strong>{p.name === 'Receita' ? fmt(p.value) : p.value}</strong>
         </p>
@@ -113,16 +113,16 @@ const HeroStat: React.FC<{
   color: 'emerald' | 'rose' | 'blue' | 'amber';
 }> = ({ label, value, icon, color }) => {
   const colors = {
-    emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-    rose:    'bg-rose-500/10    border-rose-500/20    text-rose-400',
-    blue:    'bg-blue-500/10    border-blue-500/20    text-blue-400',
-    amber:   'bg-amber-500/10   border-amber-500/20   text-amber-400',
+    emerald: 'bg-emerald-50  border-emerald-200  text-emerald-700  dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400',
+    rose:    'bg-rose-50     border-rose-200     text-rose-700     dark:bg-rose-500/10    dark:border-rose-500/20    dark:text-rose-400',
+    blue:    'bg-blue-50     border-blue-200     text-blue-700     dark:bg-blue-500/10    dark:border-blue-500/20    dark:text-blue-400',
+    amber:   'bg-amber-50    border-amber-200    text-amber-700    dark:bg-amber-500/10   dark:border-amber-500/20   dark:text-amber-400',
   }[color];
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${colors}`}>
       <span className="shrink-0">{icon}</span>
       <div>
-        <p className="text-[10px] font-mono uppercase tracking-wider opacity-70">{label}</p>
+        <p className="text-[10px] font-mono uppercase tracking-wider opacity-60">{label}</p>
         <p className="text-sm font-semibold leading-tight">{value}</p>
       </div>
     </div>
@@ -141,9 +141,9 @@ const StatCard: React.FC<{
 }> = ({ title, value, icon, trend, trendDir, accent = 'text-stone-400', loading }) => {
   if (loading) return <div className="glass-panel rounded-xl p-5 animate-pulse h-28" />;
   const TrendIcon = trendDir === 'up' ? ArrowUpRight : trendDir === 'down' ? ArrowDownRight : Minus;
-  const trendColor = trendDir === 'up' ? 'text-emerald-400' : trendDir === 'down' ? 'text-rose-400' : 'text-stone-500';
+  const trendColor = trendDir === 'up' ? 'text-emerald-600 dark:text-emerald-400' : trendDir === 'down' ? 'text-rose-600 dark:text-rose-400' : 'text-stone-500';
   return (
-    <div className="glass-panel rounded-xl p-5 flex flex-col gap-4 hover:border-white/10 transition-colors group">
+    <div className="glass-panel rounded-xl p-5 flex flex-col gap-4 hover:border-stone-300 dark:hover:border-white/10 transition-colors group">
       <div className="flex items-start justify-between gap-2">
         <span className="text-[11px] text-stone-500 font-medium leading-snug">{title}</span>
         <span className={`${accent} group-hover:opacity-100 opacity-60 transition-opacity shrink-0`}>{icon}</span>
@@ -172,8 +172,8 @@ const Panel: React.FC<{
   <div className={`glass-panel rounded-xl p-5 flex flex-col gap-4 ${className}`}>
     <div className="flex items-start justify-between gap-2">
       <div>
-        <h3 className="text-[11px] font-medium text-stone-400 uppercase tracking-widest">{title}</h3>
-        {subtitle && <p className="text-[10px] text-stone-600 mt-0.5">{subtitle}</p>}
+        <h3 className="text-[11px] font-medium text-stone-500 dark:text-stone-400 uppercase tracking-widest">{title}</h3>
+        {subtitle && <p className="text-[10px] text-stone-400 dark:text-stone-600 mt-0.5">{subtitle}</p>}
       </div>
       {action}
     </div>
@@ -195,13 +195,13 @@ const StageBar: React.FC<{
       <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-[11px] text-stone-400 truncate">{label}</span>
+          <span className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{label}</span>
           <div className="flex items-center gap-2 shrink-0 ml-2">
-            <span className="text-[10px] text-stone-600 font-mono">{count} deal{count !== 1 ? 's' : ''}</span>
-            <span className="text-[11px] font-semibold text-stone-200">{fmtShort(value)}</span>
+            <span className="text-[10px] text-stone-400 dark:text-stone-600 font-mono">{count} deal{count !== 1 ? 's' : ''}</span>
+            <span className="text-[11px] font-semibold text-stone-800 dark:text-stone-200">{fmtShort(value)}</span>
           </div>
         </div>
-        <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+        <div className="h-1 w-full bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-700"
             style={{ width: `${pct}%`, background: color }}
@@ -220,9 +220,9 @@ const UrgencySignal: React.FC<{
   level: 'critical' | 'warn' | 'ok';
 }> = ({ count, label, icon, level }) => {
   const styles = {
-    critical: 'bg-rose-500/8 border-rose-500/20 text-rose-400',
-    warn:     'bg-amber-500/8 border-amber-500/20 text-amber-400',
-    ok:       'bg-emerald-500/8 border-emerald-500/20 text-emerald-400',
+    critical: 'bg-rose-50   border-rose-200   text-rose-700   dark:bg-rose-500/8   dark:border-rose-500/20   dark:text-rose-400',
+    warn:     'bg-amber-50  border-amber-200  text-amber-700  dark:bg-amber-500/8  dark:border-amber-500/20  dark:text-amber-400',
+    ok:       'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-500/8 dark:border-emerald-500/20 dark:text-emerald-400',
   }[level];
   return (
     <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${styles}`}>
@@ -239,19 +239,19 @@ const UrgencySignal: React.FC<{
 const ComingSoon: React.FC<{ title: string; desc: string; className?: string }> = ({ title, desc, className = '' }) => (
   <div className={`glass-panel rounded-xl p-5 flex flex-col gap-3 ${className}`}>
     <div className="flex items-center justify-between">
-      <h4 className="text-[11px] font-medium text-stone-600 uppercase tracking-widest">{title}</h4>
-      <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded border border-amber-500/15 bg-amber-500/5 text-amber-600">
+      <h4 className="text-[11px] font-medium text-stone-500 dark:text-stone-600 uppercase tracking-widest">{title}</h4>
+      <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded border border-amber-400/30 bg-amber-50 text-amber-600 dark:border-amber-500/15 dark:bg-amber-500/5 dark:text-amber-500">
         em breve
       </span>
     </div>
-    <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-white/[0.04] rounded-lg p-6 min-h-[140px] gap-4">
+    <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-stone-200 dark:border-white/[0.04] rounded-lg p-6 min-h-[140px] gap-4">
       {/* phantom bars */}
-      <div className="flex items-end gap-1 h-10 w-full max-w-[200px] opacity-[0.12]">
+      <div className="flex items-end gap-1 h-10 w-full max-w-[200px] opacity-30 dark:opacity-[0.12]">
         {[35, 55, 42, 78, 60, 88, 50, 92, 65, 45].map((h, i) => (
           <div key={i} className="flex-1 bg-stone-400 rounded-sm" style={{ height: `${h}%` }} />
         ))}
       </div>
-      <p className="text-[11px] text-stone-600 text-center leading-relaxed max-w-[220px]">{desc}</p>
+      <p className="text-[11px] text-stone-400 dark:text-stone-600 text-center leading-relaxed max-w-[220px]">{desc}</p>
     </div>
   </div>
 );
@@ -260,8 +260,8 @@ const ComingSoon: React.FC<{ title: string; desc: string; className?: string }> 
 
 const SkeletonPanel = ({ h = 'h-56' }: { h?: string }) => (
   <div className={`glass-panel rounded-xl p-5 animate-pulse ${h}`}>
-    <div className="h-2.5 bg-white/5 rounded w-1/5 mb-6" />
-    <div className="h-full bg-white/5 rounded" />
+    <div className="h-2.5 bg-stone-100 dark:bg-white/5 rounded w-1/5 mb-6" />
+    <div className="h-full bg-stone-100 dark:bg-white/5 rounded" />
   </div>
 );
 
@@ -508,10 +508,10 @@ export const Dashboard: React.FC = () => {
               Receita Fechada no Período
             </p>
             {commercialLoading ? (
-              <div className="h-14 w-48 bg-white/5 rounded-lg animate-pulse" />
+              <div className="h-14 w-48 bg-stone-100 dark:bg-white/5 rounded-lg animate-pulse" />
             ) : (
               <div className="flex items-baseline gap-3">
-                <span className="text-5xl font-light tracking-tight text-emerald-400 tabular-nums">
+                <span className="text-5xl font-light tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums">
                   {fmtShort(commercial?.wonValue ?? 0)}
                 </span>
                 {(commercial?.wonCount ?? 0) > 0 && (
@@ -526,7 +526,7 @@ export const Dashboard: React.FC = () => {
           {/* Stats chips */}
           <div className="flex flex-wrap gap-2 lg:gap-3 lg:shrink-0">
             {commercialLoading ? (
-              <div className="h-14 w-64 bg-white/5 rounded-lg animate-pulse" />
+              <div className="h-14 w-64 bg-stone-100 dark:bg-white/5 rounded-lg animate-pulse" />
             ) : commercial ? (
               <>
                 <HeroStat
@@ -719,8 +719,8 @@ export const Dashboard: React.FC = () => {
                   ))}
                   {/* total */}
                   <div className="flex items-center justify-between pt-3 border-t border-border mt-4">
-                    <span className="text-[10px] text-stone-600 font-mono uppercase tracking-wider">Total em aberto</span>
-                    <span className="text-sm font-semibold text-stone-200">{fmt(commercial.pipelineValue)}</span>
+                    <span className="text-[10px] text-stone-400 dark:text-stone-600 font-mono uppercase tracking-wider">Total em aberto</span>
+                    <span className="text-sm font-semibold text-stone-800 dark:text-stone-200">{fmt(commercial.pipelineValue)}</span>
                   </div>
                 </div>
               ) : (
@@ -775,13 +775,13 @@ export const Dashboard: React.FC = () => {
                     <div key={i} className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: item.color }} />
                       <span className="text-stone-400">{item.status}</span>
-                      <span className="text-stone-200 font-medium ml-auto pl-4">{item.total}</span>
+                      <span className="text-stone-700 dark:text-stone-200 font-medium ml-auto pl-4">{item.total}</span>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-stone-600 italic py-8 text-center">Sem dados de pipeline</p>
+              <p className="text-sm text-stone-400 italic py-8 text-center">Sem dados de pipeline</p>
             )}
           </Panel>
         )}
@@ -851,7 +851,7 @@ export const Dashboard: React.FC = () => {
                     <div key={i} className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: item.color }} />
                       <span className="text-stone-500 truncate">{item.status}</span>
-                      <span className="text-stone-200 font-medium ml-auto pl-2">{item.total}</span>
+                      <span className="text-stone-700 dark:text-stone-200 font-medium ml-auto pl-2">{item.total}</span>
                     </div>
                   ))}
                 </div>
@@ -874,7 +874,7 @@ export const Dashboard: React.FC = () => {
                     <div key={i} className="flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ background: item.color }} />
                       <span className="text-stone-500 truncate">{item.prioridade}</span>
-                      <span className="text-stone-200 font-medium ml-auto pl-2">{item.total}</span>
+                      <span className="text-stone-700 dark:text-stone-200 font-medium ml-auto pl-2">{item.total}</span>
                     </div>
                   ))}
                 </div>
@@ -889,8 +889,8 @@ export const Dashboard: React.FC = () => {
       ══════════════════════════════════════════════════════════ */}
       <div className="border-t border-border pt-8">
         <div className="flex items-center gap-2 mb-6">
-          <Activity size={13} className="text-stone-600" />
-          <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-stone-600">Analytics Avançados</span>
+          <Activity size={13} className="text-stone-400 dark:text-stone-600" />
+          <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-stone-400 dark:text-stone-600">Analytics Avançados</span>
           <div className="flex-1 h-px bg-border/50" />
         </div>
 
