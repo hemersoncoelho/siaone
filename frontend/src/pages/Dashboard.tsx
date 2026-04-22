@@ -13,7 +13,7 @@ import {
   DollarSign, Trophy, Percent, AlertCircle,
   MessageSquare, Target, Inbox, BadgeCheck, Zap,
   Clock, ArrowUpRight, ArrowDownRight, Minus,
-  ChevronRight, Activity, TrendingUp, Award, Users,
+  ChevronRight, Activity, TrendingUp,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────
