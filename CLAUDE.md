@@ -47,11 +47,34 @@ Definidos em `frontend/src/routes/AppRoutes.tsx`. Páginas pesadas são carregad
 - `<ProtectedRoute allowedRoles={[...]}>` — seções restritas por papel
 - `<AgentRestrictedRoute>` — bloqueia o papel `agent` em determinadas páginas
 
+### Organização de Componentes
+- `components/ui/` — primitivos reutilizáveis (botões, modais, inputs)
+- `components/Inbox/`, `components/Pipeline/`, `components/AiAgents/`, etc. — componentes agrupados por feature
+- `lib/utils.ts` exporta `cn(...classes)` (clsx + tailwind-merge) — use para todas as classes condicionais do Tailwind
+- Tipos TypeScript centralizados em `src/types.ts`
+
+### Temas (Dark/Light)
+Use classes CSS Tailwind baseadas em variáveis (`bg-background`, `text-primary`, `border-border`, etc.) — nunca cores hexadecimais hardcoded. O ThemeContext alterna a classe `dark` no `<html>`.
+
 ### Padrão de Busca de Dados
 1. **Leituras simples:** `supabase.from('table').select(...)` — RLS cuida do escopo por tenant automaticamente
 2. **Mutações complexas:** `supabase.rpc('rpc_function_name', { p_param: value })` — lógica server-side com operações atômicas
 3. **Operações sensíveis:** `supabase.functions.invoke('function-name', { body })` — Edge Functions para chamadas UAZAPI e criação de membros
 4. **Tempo real:** Assinaturas Supabase Realtime nas tabelas `conversations` e `messages` no Inbox
+
+### Migrações SQL
+Arquivos `.sql` em `frontend/supabase-migrations/` — aplicados manualmente via Supabase Dashboard (SQL Editor) ou `supabase db push`. Não existe pipeline de migração automatizado.
+
+### Backoffice Admin
+Seção `/admin` acessível apenas para `system_admin` e `platform_admin`. Usa `AdminShell` separado do `AppShell` principal. Páginas: CompaniesList, CompanyDetails, UsersList, SupportPanel.
+
+O `UsersList` inclui modal de criação de usuário que chama a Edge Function `create-platform-user` — exige vínculo com uma empresa obrigatoriamente.
+
+### Compatibilidade Vite/OXC
+O Vite 8 usa o parser OXC que é mais restrito que o `tsc`:
+- **Proibido:** misturar `??` e `||` sem parênteses — use `(a ?? b) || c`
+- **Proibido:** declarar `type` alias dentro do corpo de funções ou componentes — declare sempre no escopo de módulo
+- Sempre rode `npx tsc --noEmit` após mudanças em TypeScript; o OXC pode rejeitar padrões que o `tsc` aceita
 
 ### Edge Functions
 Localizadas em `supabase/functions/`. Cada função:
@@ -63,7 +86,8 @@ Localizadas em `supabase/functions/`. Cada função:
 |--------|-----------|
 | `uazapi-connector` | Gerenciamento de canais WhatsApp (conectar/desconectar instâncias) |
 | `send-whatsapp-message` | Envio de mensagens via UAZAPI |
-| `create-member` | Convite e criação de membros na empresa (bypass de RLS) |
+| `create-member` | Convite e criação de membros na empresa (requer `company_id` + caller ser `company_admin`) |
+| `create-platform-user` | Criação de usuário de plataforma com vínculo obrigatório a empresa (requer caller ser `platform_admin`) |
 
 ### Funções RPC Principais
 | RPC | Propósito |
@@ -77,6 +101,9 @@ Localizadas em `supabase/functions/`. Cada função:
 | `rpc_close_conversation` | Fecha conversa com evento de auditoria |
 | `rpc_set_conversation_attendance` | Alterna entre modo human/ai/hybrid e vincula agente |
 | `rpc_update_deal_stage` | Move deal no pipeline |
+| `rpc_mark_deal_won` | Fecha deal como Ganho: `status='won'`, `closed_at=now()` |
+| `rpc_mark_deal_lost` | Fecha deal como Perdido: `status='lost'`, `loss_reason`, `closed_at=now()` |
+| `rpc_update_deal_details` | Atualiza título e/ou valor de um deal (COALESCE — null preserva valor atual) |
 | `rpc_ensure_prospeccao_deal` | Cria automaticamente deal de prospecção em nova conversa |
 | `rpc_update_contact_lead_metadata` | Atualiza campos de qualificação do lead |
 | `rpc_save_ai_agent` | Upsert de configuração do agente de IA (nome, model, system_prompt, scope) |
@@ -87,7 +114,8 @@ Localizadas em `supabase/functions/`. Cada função:
 | Tabela | Propósito |
 |--------|-----------|
 | `companies` | Tenants |
-| `user_profiles` / `user_companies` | Usuários e seus vínculos com empresas e papéis |
+| `user_profiles` | Perfil do usuário: `id`, `full_name`, `avatar_url`, `system_role` (enum `app_role`) |
+| `user_companies` | Vínculo usuário-empresa-papel (`role_in_company`) |
 | `contacts` / `contact_identities` | Contatos do CRM; identidades vinculam telefone/email ao contato |
 | `conversations` / `messages` | Hub do Inbox; conversas possuem `attendance_mode` (human/ai/hybrid) |
 | `channel_events_raw` | Eventos brutos recebidos da UAZAPI, processados pelo n8n |
@@ -99,6 +127,18 @@ Localizadas em `supabase/functions/`. Cada função:
 | `ai_agent_bindings` | Vincula agentes de IA a canais ou conversas específicas |
 | `audit_logs` | Trilha de auditoria imutável |
 | `kpi_company_daily_snapshots` | Snapshots diários de KPIs para analytics |
+
+### Modelo de Deal (Pipeline)
+A tabela `deals` suporta o ciclo de vida completo de um negócio:
+- **`status`** — enum `app_role`: `open` | `won` | `lost`
+- **`closed_at`** — timestamp preenchido por `rpc_mark_deal_won` / `rpc_mark_deal_lost`
+- **`loss_reason`** — texto opcional, preenchido ao marcar como perdido
+- **`conversation_id`** — link direto à conversa; usado pelo Inbox para buscar o deal vinculado
+- Deals ganhos/perdidos **não aparecem** no filtro "Ativos" do Pipeline; use os filtros "Ganhos" / "Perdidos"
+
+**UI de ganho/perda disponível em dois lugares:**
+1. `DealDetailPanel` (Pipeline) — seção "Fechar Negócio" com confirmação inline; só exibida quando `deal.status === 'open'`
+2. `ConversationDetail` (Inbox) — seção "Negócios" no sidebar; busca o deal por `conversation_id` (fallback: `contact_id + status=open`)
 
 ### Views Analíticas
 | View | Propósito |
@@ -153,11 +193,10 @@ VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 ```
 
-Edge Functions usam `UAZAPI_BASE_URL` e `UAZAPI_ADMIN_TOKEN` definidos como secrets do Supabase (não no `.env`).
+Edge Functions usam `UAZAPI_BASE_URL`, `UAZAPI_ADMIN_TOKEN` e `SUPABASE_SERVICE_ROLE_KEY` definidos como secrets do Supabase (não no `.env`).
 
-## Problemas Conhecidos (Bloqueadores P0)
-1. `InviteMemberModal` chama RPC inexistente `create_company_member` — deve invocar a Edge Function `create-member`
-2. `NewConversationModal` passa `user.id` como `p_agent_id` — deve passar `null` ou um ID de agente válido
+## Problemas Conhecidos
+1. `NewConversationModal` passa `user.id` como `p_agent_id` — deve passar `null` ou um ID de agente válido
 
 ## Convenções de Commit
 Commits seguem os prefixos `feat:`, `fix:`, `refactor:`. Mensagens de commit são escritas em português.

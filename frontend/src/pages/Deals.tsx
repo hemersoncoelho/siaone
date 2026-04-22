@@ -119,6 +119,22 @@ export const Deals: React.FC = () => {
     }
   }, [deals]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleUpdateDeal = useCallback((dealId: string, patch: Partial<Deal>) => {
+    setDeals(prev => prev.map(d => d.id === dealId ? { ...d, ...patch } : d));
+  }, []);
+
+  const handleStatusChange = useCallback((dealId: string, newStatus: DealStatus, _patch: Partial<Deal>) => {
+    // Remove deal from current view (it no longer matches the 'open' status filter)
+    setDeals(prev => prev.filter(d => d.id !== dealId));
+    setSelectedDeal(null);
+    showToast(
+      newStatus === 'won'
+        ? 'Negócio marcado como Ganho!'
+        : 'Negócio marcado como Perdido.',
+      'success'
+    );
+  }, []);
+
   const handleMoveDeal = async (dealId: string, newStageId: string) => {
     const prevDeal = deals.find(d => d.id === dealId);
     if (!prevDeal) return;
@@ -365,6 +381,8 @@ export const Deals: React.FC = () => {
           canMove={canMove}
           onClose={() => setSelectedDeal(null)}
           onMove={handleMoveDeal}
+          onUpdate={handleUpdateDeal}
+          onStatusChange={handleStatusChange}
         />
       )}
 

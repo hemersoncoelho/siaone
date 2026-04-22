@@ -22,6 +22,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile | null>(null);
   const [impersonated, setImpersonated] = useState<UserProfile | null>(null);
   const mountedRef = React.useRef(true);
+  // Tracks whether a valid profile has been successfully loaded at least once.
+  // Used to skip redundant re-fetches on TOKEN_REFRESHED / SIGNED_IN events
+  // that Supabase fires after INITIAL_SESSION.
+  const profileLoadedRef = React.useRef(false);
+  // Monotonically-increasing counter used to detect and discard stale profile
+  // fetches. React StrictMode mounts components twice in dev, creating two
+  // concurrent subscriptions and two concurrent profile fetches. The counter
+  // ensures only the LATEST fetch's result is applied to state.
+  const fetchGenRef = React.useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -34,10 +43,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mountedRef.current) return;
 
+      // TOKEN_REFRESHED and SIGNED_IN (which Supabase emits right after
+      // INITIAL_SESSION) must NOT trigger a full profile re-fetch if we
+      // already have a valid profile — otherwise every token rotation causes
+      // an 8-second timeout loop and a brief role downgrade to 'agent'.
+      if ((_event === 'TOKEN_REFRESHED' || _event === 'SIGNED_IN') && profileLoadedRef.current) {
+        return;
+      }
+
       if (session) {
         await handleSessionUpdate(session);
       } else {
         setUser(null);
+        profileLoadedRef.current = false;
         setSessionState('unauthenticated');
       }
     });
@@ -50,22 +68,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleSessionUpdate = async (session: Session | null) => {
     if (!session) {
-      console.log('[Auth] No session, setting unauthenticated');
       setUser(null);
       setSessionState('unauthenticated');
       return;
     }
 
+    // Claim this generation — any prior in-flight fetch will see its generation
+    // is stale and discard its result, preventing StrictMode double-mount from
+    // applying a timed-out fetch result AFTER a successful concurrent fetch.
+    const myGen = ++fetchGenRef.current;
+
     console.log('[Auth] Session found for user:', session.user.id);
 
-    // Block Guards while we re-fetch the profile (e.g. on tab focus / token refresh).
-    // Without this reset, Guards remain in 'authenticated' state with potentially stale
-    // role data while the profile fetch races against the timeout — causing DOM errors
-    // if the fallback role triggers a redirect mid-render.
     setSessionState('loading');
     setProfileLoading(true);
 
-    // Fetch the extended profile — set authenticated only after role is confirmed
     try {
       const { data: profile, error } = await Promise.race([
         supabase
@@ -78,13 +95,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ),
       ]);
 
-      if (!mountedRef.current) return;
+      // Discard result if component unmounted OR if a newer fetch has started
+      if (!mountedRef.current || fetchGenRef.current !== myGen) return;
 
       if (!error && profile) {
         console.log('[Auth] Profile loaded:', profile.full_name, profile.system_role);
         // NOTE: DB stores 'platform_admin' but we expose 'system_admin' as the frontend role.
         // Every guard that checks for admin access MUST check for BOTH 'system_admin'
         // AND 'platform_admin' to remain safe against future DB or mapping changes.
+        profileLoadedRef.current = true;
         setUser({
           id: profile.id,
           email: session.user.email || '',
@@ -108,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } catch (err) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || fetchGenRef.current !== myGen) return;
       console.error('[Auth] Unexpected error fetching profile:', err);
       setUser(prev => prev ?? {
         id: session.user.id,
@@ -118,7 +137,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: 'agent',
       });
     } finally {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || fetchGenRef.current !== myGen) return;
       setProfileLoading(false);
       setSessionState('authenticated');
       console.log('[Auth] State set to authenticated');
@@ -167,6 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     setSessionState('loading');
+    profileLoadedRef.current = false;
     await supabase.auth.signOut();
     setUser(null);
     setImpersonated(null);

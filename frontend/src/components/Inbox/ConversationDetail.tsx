@@ -14,6 +14,10 @@ import {
   MessageSquare,
   ChevronsRight,
   ChevronsLeft,
+  Trophy,
+  XCircle,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { getAttendeeTextColor } from '../../utils/attendeeColors';
@@ -23,7 +27,9 @@ import { useTenant } from '../../contexts/TenantContext';
 import { Timeline } from './Timeline';
 import { Composer } from './Composer';
 import { NotesList } from '../Notes/NotesList';
-import type { Task, TaskStatus, AiAgent, AttendanceMode, Message } from '../../types';
+import type { Task, TaskStatus, AiAgent, AttendanceMode, Message, Deal, DealStatus } from '../../types';
+
+type LinkedDeal = Pick<Deal, 'id' | 'title' | 'amount' | 'status' | 'loss_reason' | 'closed_at'>;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -523,6 +529,14 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
   const [savingTask, setSavingTask] = useState(false);
 
+  // Linked deal (deal vinculado à conversa para ações de ganho/perda)
+  const [linkedDeal, setLinkedDeal] = useState<LinkedDeal | null>(null);
+  const [linkedDealLoading, setLinkedDealLoading] = useState(false);
+  const [dealCloseMode, setDealCloseMode] = useState<null | 'won' | 'lost'>(null);
+  const [dealLossReason, setDealLossReason] = useState('');
+  const [dealClosing, setDealClosing] = useState(false);
+  const [dealCloseError, setDealCloseError] = useState<string | null>(null);
+
   // AI Agents
   const [availableAgents, setAvailableAgents] = useState<AiAgent[]>([]);
   const [currentMode, setCurrentMode] = useState<AttendanceMode>(
@@ -571,6 +585,110 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
+
+  // ── Deal vinculado: fetch + win/loss handlers ──────────────────────────────
+
+  const fetchLinkedDeal = useCallback(async () => {
+    if (!conversation?.conversation_id || !currentCompany) return;
+    setLinkedDealLoading(true);
+    try {
+      // Busca pelo conversation_id (link direto)
+      const { data: byConv } = await supabase
+        .from('deals')
+        .select('id, title, amount, status, loss_reason, closed_at')
+        .eq('company_id', currentCompany.id)
+        .eq('conversation_id', conversation.conversation_id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (byConv) {
+        setLinkedDeal(byConv as LinkedDeal);
+        return;
+      }
+
+      // Fallback: contact_id com status open
+      if (conversation.contact_id) {
+        const { data: byContact } = await supabase
+          .from('deals')
+          .select('id, title, amount, status, loss_reason, closed_at')
+          .eq('company_id', currentCompany.id)
+          .eq('contact_id', conversation.contact_id)
+          .eq('status', 'open')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setLinkedDeal((byContact as LinkedDeal) ?? null);
+      } else {
+        setLinkedDeal(null);
+      }
+    } finally {
+      setLinkedDealLoading(false);
+    }
+  }, [conversation?.conversation_id, conversation?.contact_id, currentCompany]);
+
+  useEffect(() => {
+    setLinkedDeal(null);
+    setDealCloseMode(null);
+    setDealLossReason('');
+    setDealCloseError(null);
+    fetchLinkedDeal();
+  }, [conversation?.conversation_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDealWon = async () => {
+    if (!currentCompany || !linkedDeal) return;
+    setDealClosing(true);
+    setDealCloseError(null);
+    try {
+      const { data, error } = await supabase.rpc('rpc_mark_deal_won', {
+        p_deal_id: linkedDeal.id,
+        p_company_id: currentCompany.id,
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error ?? 'Falha ao marcar como ganho');
+      setLinkedDeal(prev => prev
+        ? { ...prev, status: 'won' as DealStatus, closed_at: data.closed_at ?? new Date().toISOString(), loss_reason: null }
+        : null
+      );
+      setDealCloseMode(null);
+      onConversationUpdate?.();
+    } catch (err: any) {
+      setDealCloseError(err.message || 'Erro ao marcar como ganho.');
+    } finally {
+      setDealClosing(false);
+    }
+  };
+
+  const handleDealLost = async () => {
+    if (!currentCompany || !linkedDeal) return;
+    setDealClosing(true);
+    setDealCloseError(null);
+    try {
+      const { data, error } = await supabase.rpc('rpc_mark_deal_lost', {
+        p_deal_id: linkedDeal.id,
+        p_company_id: currentCompany.id,
+        p_loss_reason: dealLossReason.trim() || null,
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error ?? 'Falha ao marcar como perdido');
+      setLinkedDeal(prev => prev
+        ? {
+            ...prev,
+            status: 'lost' as DealStatus,
+            closed_at: data.closed_at ?? new Date().toISOString(),
+            loss_reason: (data.loss_reason ?? dealLossReason.trim()) || null,
+          }
+        : null
+      );
+      setDealCloseMode(null);
+      setDealLossReason('');
+      onConversationUpdate?.();
+    } catch (err: any) {
+      setDealCloseError(err.message || 'Erro ao marcar como perdido.');
+    } finally {
+      setDealClosing(false);
+    }
+  };
 
   // Normaliza uma linha de mensagem do banco para o tipo Message do frontend
   const normalizeMessage = useCallback((m: any): Message => {
@@ -758,7 +876,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     fetchTasks();
   }, [fetchTasks]);
 
-  // Send message — step 1: persiste no banco; step 2: despacha via UAZAPI (WhatsApp)
+  // Send message — notas internas via RPC; WhatsApp via webhook n8n (salva + envia UAZAPI)
   const handleSendMessage = async (body: string, isInternal: boolean) => {
     if (!user || !conversation) return;
 
@@ -779,78 +897,90 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
 
     setMessages((prev) => [...prev, newMsg]);
 
-    // Passo 1 — gravar no banco via RPC
-    const { error: rpcError, data: rpcData } = await supabase.rpc('rpc_enqueue_outbound_message', {
-      p_conversation_id: conversation.conversation_id,
-      p_body: body,
-      p_sender_id: user.id,
-      p_is_internal: isInternal,
-    });
-
-    if (rpcError || !rpcData?.success) {
-      console.error('[rpc_enqueue] error:', rpcError?.message ?? rpcData?.error);
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m))
-      );
-      return;
-    }
-
-    // ── Atualiza o id temporário para o id real do banco (public_id)
-    // Isso impede que o listener Realtime crie uma entrada duplicada:
-    // quando o INSERT chegar via Realtime, o id real já estará na lista.
-    const realId = rpcData.public_id
-      ? String(rpcData.public_id)
-      : rpcData.message_id != null
-        ? String(rpcData.message_id)
-        : tempId;
-
-    if (realId !== tempId) {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === tempId ? { ...m, id: realId } : m))
-      );
-    }
-
-    // Notas internas não vão para o WhatsApp
+    // Notas internas não vão para o WhatsApp — usa RPC diretamente
     if (isInternal) {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === realId ? { ...m, status: 'sent' } : m))
-      );
+      const { error: rpcError, data: rpcData } = await supabase.rpc('rpc_enqueue_outbound_message', {
+        p_conversation_id: conversation.conversation_id,
+        p_body: body,
+        p_sender_id: user.id,
+        p_is_internal: true,
+      });
+
+      if (rpcError || !rpcData?.success) {
+        console.error('[rpc_enqueue internal] error:', rpcError?.message ?? rpcData?.error);
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m)));
+        return;
+      }
+
+      const realId = rpcData.public_id
+        ? String(rpcData.public_id)
+        : rpcData.message_id != null
+          ? String(rpcData.message_id)
+          : tempId;
+
+      if (realId !== tempId) {
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, id: realId } : m)));
+      }
+      setMessages((prev) => prev.map((m) => (m.id === realId ? { ...m, status: 'sent' } : m)));
       if (onConversationUpdate) onConversationUpdate();
       return;
     }
 
-    // Passo 2 — despachar via UAZAPI (nunca expõe token no cliente)
-    // message_id é BIGINT retornado como string em JSON — garantir que vai como number
-    const msgId = rpcData.message_id != null ? Number(rpcData.message_id) : null;
-
-    const { data: { session } } = await supabase.auth.getSession();
-    const { error: dispatchError, data: dispatchData } = await supabase.functions.invoke<{
-      success: boolean;
-      error?: string;
-      dispatched?: boolean;
-    }>('send-whatsapp-message', {
-      body: {
-        conversation_id: conversation.conversation_id,
-        message_id: msgId,
-        body,
-      },
-      headers: session?.access_token
-        ? { Authorization: `Bearer ${session.access_token}` }
-        : undefined,
-    });
-
-    if (dispatchError || !dispatchData?.success) {
-      const errMsg = dispatchData?.error || dispatchError?.message || 'Falha ao enviar no WhatsApp.';
-      console.warn('[send-whatsapp-message]', errMsg);
-      setSendError(errMsg);
-      setMessages((prev) =>
-        prev.map((m) => (m.id === realId ? { ...m, status: 'failed' } : m))
+    // Mensagem WhatsApp — n8n cuida do envio via UAZAPI e da persistência no banco
+    try {
+      const res = await fetch(
+        'https://n8n.solucoesai.tech/webhook/sia-one-outbound-human',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: conversation.contact_phone ?? '',
+            body,
+            company_id: currentCompany!.id,
+            conversation_id: conversation.conversation_id,
+            sender_name: user.full_name,
+            sender_id: user.id,
+          }),
+        }
       );
-    } else {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === realId ? { ...m, status: 'sent' } : m))
-      );
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        const errMsg = data.error || 'Falha ao enviar no WhatsApp.';
+        console.warn('[outbound-human n8n]', errMsg);
+        setSendError(errMsg);
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m)));
+        return;
+      }
+
+      // Mantém o tempId como está — o Realtime substituirá pelo id real via match body+sender_id.
+      // NÃO substituir aqui pelo id numérico do n8n: o Realtime usa public_id (UUID), causando
+      // mismatch e duplicação quando os dois chegam com ids diferentes.
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'sent' } : m)));
+
+      // Após envio bem-sucedido, assumir modo humano (desativa IA) e elevar prioridade
+      if (currentMode !== 'human') {
+        supabase
+          .rpc('rpc_set_conversation_attendance', {
+            p_conversation_id: conversation.conversation_id,
+            p_mode: 'human',
+            p_agent_id: user.id,
+          })
+          .then(({ data: modeData }) => {
+            if (modeData?.success) setCurrentMode('human');
+          });
+      }
+      supabase
+        .from('conversations')
+        .update({ priority: 'high', updated_at: new Date().toISOString() })
+        .eq('id', conversation.conversation_id);
+
       if (onConversationUpdate) onConversationUpdate();
+    } catch (err) {
+      console.error('[outbound-human n8n]', err);
+      setSendError('Erro de rede ao enviar mensagem.');
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m)));
     }
   };
 
@@ -1253,27 +1383,181 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
                 )}
 
                 {/* Negócios */}
-                {conversation.open_deals_count > 0 && (
+                {(conversation.open_deals_count > 0 || linkedDeal) && (
                   <CollapsibleSection
                     label="Negócios"
                     icon={<DollarSign size={12} />}
                     defaultOpen={true}
                   >
-                    <div className="rounded-xl border border-border bg-surface-hover p-3 hover:bg-border transition-colors cursor-pointer">
-                      <div className="flex items-center gap-2">
-                        <span className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                          <DollarSign size={13} className="text-emerald-400" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-text-main truncate">
-                            {conversation.contact_name}
-                          </p>
-                          <p className="text-[10px] text-emerald-400 font-mono">
-                            {conversation.open_deals_count} negócio{conversation.open_deals_count > 1 ? 's' : ''} aberto{conversation.open_deals_count > 1 ? 's' : ''}
-                          </p>
+                    {linkedDealLoading ? (
+                      <div className="h-12 bg-surface-hover rounded-xl animate-pulse" />
+                    ) : linkedDeal ? (
+                      <div className="space-y-3">
+                        {/* Deal card */}
+                        <div className={cn(
+                          'rounded-xl border p-3',
+                          linkedDeal.status === 'won'
+                            ? 'bg-emerald-500/8 border-emerald-500/20'
+                            : linkedDeal.status === 'lost'
+                            ? 'bg-rose-500/8 border-rose-500/20'
+                            : 'bg-surface-hover border-border'
+                        )}>
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              'w-7 h-7 rounded-lg flex items-center justify-center shrink-0',
+                              linkedDeal.status === 'won'
+                                ? 'bg-emerald-500/15 border border-emerald-500/20'
+                                : linkedDeal.status === 'lost'
+                                ? 'bg-rose-500/15 border border-rose-500/20'
+                                : 'bg-emerald-500/15 border border-emerald-500/20'
+                            )}>
+                              {linkedDeal.status === 'won' ? (
+                                <Trophy size={13} className="text-emerald-400" />
+                              ) : linkedDeal.status === 'lost' ? (
+                                <XCircle size={13} className="text-rose-400" />
+                              ) : (
+                                <DollarSign size={13} className="text-emerald-400" />
+                              )}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-text-main truncate">
+                                {linkedDeal.title}
+                              </p>
+                              {linkedDeal.amount > 0 && (
+                                <p className="text-[10px] text-emerald-400 font-mono">
+                                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(linkedDeal.amount)}
+                                </p>
+                              )}
+                            </div>
+                            {linkedDeal.status !== 'open' && (
+                              <span className={cn(
+                                'text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0',
+                                linkedDeal.status === 'won'
+                                  ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+                                  : 'text-rose-400 bg-rose-400/10 border-rose-400/20'
+                              )}>
+                                {linkedDeal.status === 'won' ? 'Ganho' : 'Perdido'}
+                              </span>
+                            )}
+                          </div>
+                          {linkedDeal.loss_reason && (
+                            <p className="text-[10px] text-stone-500 mt-2 pl-9 italic">
+                              {linkedDeal.loss_reason}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Win/Loss actions — apenas para deals abertos */}
+                        {linkedDeal.status === 'open' && (
+                          <>
+                            {dealCloseError && (
+                              <div className="flex items-center gap-2 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
+                                <AlertCircle size={11} className="shrink-0" />
+                                <span className="flex-1">{dealCloseError}</span>
+                                <button onClick={() => setDealCloseError(null)}>
+                                  <X size={11} />
+                                </button>
+                              </div>
+                            )}
+
+                            {dealCloseMode === null && (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => { setDealCloseError(null); setDealCloseMode('won'); }}
+                                  disabled={dealClosing}
+                                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all text-xs font-semibold disabled:opacity-50"
+                                >
+                                  <Trophy size={12} />
+                                  Ganhar
+                                </button>
+                                <button
+                                  onClick={() => { setDealCloseError(null); setDealCloseMode('lost'); }}
+                                  disabled={dealClosing}
+                                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50 transition-all text-xs font-semibold disabled:opacity-50"
+                                >
+                                  <XCircle size={12} />
+                                  Perder
+                                </button>
+                              </div>
+                            )}
+
+                            {dealCloseMode === 'won' && (
+                              <div className="space-y-2">
+                                <div className="p-2.5 bg-emerald-500/8 border border-emerald-500/20 rounded-lg">
+                                  <p className="text-xs text-text-main">
+                                    Marcar como <span className="text-emerald-400 font-semibold">Ganho</span>?
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setDealCloseMode(null)}
+                                    disabled={dealClosing}
+                                    className="flex-1 py-1.5 text-xs text-text-muted border border-border rounded-lg hover:bg-surface-hover transition-all disabled:opacity-50"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    onClick={handleDealWon}
+                                    disabled={dealClosing}
+                                    className="flex-1 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
+                                  >
+                                    {dealClosing ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
+                                    {dealClosing ? 'Salvando…' : 'Confirmar'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {dealCloseMode === 'lost' && (
+                              <div className="space-y-2">
+                                <textarea
+                                  value={dealLossReason}
+                                  onChange={e => setDealLossReason(e.target.value)}
+                                  placeholder="Motivo da perda (opcional)"
+                                  rows={2}
+                                  disabled={dealClosing}
+                                  className="w-full bg-surface-hover border border-border rounded-lg px-2.5 py-1.5 text-xs text-primary placeholder-stone-600 outline-none focus:border-rose-500/40 resize-none transition-colors disabled:opacity-50"
+                                />
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => { setDealCloseMode(null); setDealLossReason(''); }}
+                                    disabled={dealClosing}
+                                    className="flex-1 py-1.5 text-xs text-text-muted border border-border rounded-lg hover:bg-surface-hover transition-all disabled:opacity-50"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    onClick={handleDealLost}
+                                    disabled={dealClosing}
+                                    className="flex-1 py-1.5 text-xs font-semibold bg-rose-700 text-white rounded-lg hover:bg-rose-600 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
+                                  >
+                                    {dealClosing ? <Loader2 size={11} className="animate-spin" /> : <XCircle size={11} />}
+                                    {dealClosing ? 'Salvando…' : 'Confirmar Perda'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      /* Fallback quando open_deals_count > 0 mas deal não foi encontrado por conversation_id */
+                      <div className="rounded-xl border border-border bg-surface-hover p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                            <DollarSign size={13} className="text-emerald-400" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-text-main truncate">
+                              {conversation.contact_name}
+                            </p>
+                            <p className="text-[10px] text-emerald-400 font-mono">
+                              {conversation.open_deals_count} negócio{conversation.open_deals_count > 1 ? 's' : ''} aberto{conversation.open_deals_count > 1 ? 's' : ''}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </CollapsibleSection>
                 )}
 

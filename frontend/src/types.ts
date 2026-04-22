@@ -52,6 +52,7 @@ export interface Deal {
   currency?: string;
   status: DealStatus;
   loss_reason?: string | null;
+  closed_at?: string | null;
   expected_close_date?: string | null;
   created_at: string;
   updated_at: string;
@@ -203,4 +204,5 @@ export interface InboxConversation {
   open_deals_count: number;
   last_message_preview?: string;
   last_message_at?: string;
+  contact_phone?: string;
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTenant } from '../contexts/TenantContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -36,9 +36,9 @@ export const Inbox: React.FC = () => {
     }
   }, [activeId, initialSendError]);
 
-  const fetchInbox = useCallback(async () => {
+  const fetchInbox = useCallback(async (silent = false) => {
     if (!currentCompany) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const { data, error } = await supabase.rpc('rpc_get_inbox_conversations', {
         p_company_id: currentCompany.id,
@@ -49,13 +49,18 @@ export const Inbox: React.FC = () => {
     } catch (err: any) {
       console.error('Error fetching inbox:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [currentCompany]);
 
+  // Ref estável para ser usado nos callbacks Realtime sem ser dependência do useEffect
+  const fetchInboxRef = useRef(fetchInbox);
+  useEffect(() => { fetchInboxRef.current = fetchInbox; }, [fetchInbox]);
+
   useEffect(() => { fetchInbox(); }, [fetchInbox]);
 
-  // Realtime: atualiza a lista quando chega nova mensagem do contato
+  // Realtime: atualiza a lista silenciosamente quando chegam novos eventos
+  // fetchInboxRef garante que o canal não seja recriado a cada render
   useEffect(() => {
     if (!currentCompany) return;
 
@@ -63,28 +68,18 @@ export const Inbox: React.FC = () => {
       .channel(`inbox-messages-${currentCompany.id}`)
       .on(
         'postgres_changes',
-        {
-          // Escuta qualquer INSERT em messages — tanto inbound (contact)
-          // quanto outbound (user/agent) — para manter o preview lateral atualizado
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-        },
-        () => { fetchInbox(); }
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        () => { fetchInboxRef.current(true); }
       )
       .on(
         'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'conversations',
-        },
-        () => { fetchInbox(); }
+        { event: 'UPDATE', schema: 'public', table: 'conversations' },
+        () => { fetchInboxRef.current(true); }
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [currentCompany, fetchInbox]);
+  }, [currentCompany]);
 
   // Apply search + tab filters (memoized + debounced search)
   const filteredConversations = useMemo(() => {
