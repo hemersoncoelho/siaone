@@ -959,16 +959,34 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       // mismatch e duplicação quando os dois chegam com ids diferentes.
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: 'sent' } : m)));
 
-      // Após envio bem-sucedido, assumir modo humano (desativa IA) e elevar prioridade
+      // Se a conversa estava no modo IA, pausar e atribuir ao agente humano que enviou
       if (currentMode !== 'human') {
+        // 1. Pausar IA — muda attendance_mode para 'human' e registra ai_paused_at
         supabase
           .rpc('rpc_set_conversation_attendance', {
             p_conversation_id: conversation.conversation_id,
             p_mode: 'human',
-            p_agent_id: user.id,
+            // p_agent_id NÃO é passado: esse parâmetro espera um UUID de ai_agents,
+            // não o id do usuário humano. Omitir usa o DEFAULT NULL da RPC.
           })
-          .then(({ data: modeData }) => {
+          .then(({ data: modeData, error: modeError }) => {
+            if (modeError) {
+              console.warn('[rpc_set_conversation_attendance] erro ao pausar IA:', modeError.message);
+              return; // não bloqueia o envio
+            }
             if (modeData?.success) setCurrentMode('human');
+          });
+
+        // 2. Atribuir conversa ao agente humano que enviou a mensagem (fire-and-forget)
+        supabase
+          .rpc('rpc_assign_conversation', {
+            p_conversation_id: conversation.conversation_id,
+            p_user_id: user.id,
+          })
+          .then(({ error: assignError }) => {
+            if (assignError) {
+              console.warn('[rpc_assign_conversation] erro ao atribuir conversa:', assignError.message);
+            }
           });
       }
       supabase
