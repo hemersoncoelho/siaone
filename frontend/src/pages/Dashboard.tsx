@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useTenant } from '../contexts/TenantContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -6,24 +7,23 @@ import { PeriodFilter, periodToStartDate } from '../components/Dashboard/PeriodF
 import type { Period } from '../components/Dashboard/PeriodFilter';
 import {
   ComposedChart, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import {
   DollarSign, Trophy, Percent, AlertCircle,
   MessageSquare, Target, Inbox, BadgeCheck, Zap,
   Clock, ArrowUpRight, ArrowDownRight, Minus,
-  ChevronRight, Activity, TrendingUp,
+  ChevronRight, Activity, TrendingUp, Mail, Users, Layers
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────
 
 interface KPIData {
-  total_messages:     number; // fluxo: mensagens no período selecionado
-  total_leads:        number; // snapshot: leads ativos agora
-  open_conversations: number; // snapshot: conversas abertas agora
-  qualified_leads:    number; // snapshot: contatos qualificados agora
-  overdue_tasks:      number; // snapshot: tarefas vencidas agora
+  total_messages:     number;
+  total_leads:        number;
+  open_conversations: number;
+  qualified_leads:    number;
+  overdue_tasks:      number;
 }
 
 interface ChartData {
@@ -33,20 +33,20 @@ interface ChartData {
 }
 
 interface CommercialData {
-  pipelineValue:    number; // deals abertos criados no período selecionado
-  wonValue:         number; // deals ganhos criados no período
+  pipelineValue:    number;
+  wonValue:         number;
   wonCount:         number;
   lostCount:        number;
-  totalInPeriod:    number; // total de deals criados no período (base da conversão)
-  conversionRate:   number; // wonCount / totalInPeriod
+  totalInPeriod:    number;
+  conversionRate:   number;
   dealsByStage:     { stage: string; count: number; value: number; color: string; position: number }[];
   dealsByStatus:    { status: string; total: number; color: string }[];
 }
 
 interface TrendPoint {
   date:                string;
-  wonAmount:           number; // receita fechada no dia (fluxo)
-  openPipelineAmount:  number; // pipeline em aberto no final do dia (estoque)
+  wonAmount:           number;
+  openPipelineAmount:  number;
   newDeals:            number;
   wonDeals:            number;
   lostDeals:           number;
@@ -93,6 +93,20 @@ const PRIORITY_LABELS: Record<string, string> = {
   urgent: 'Urgente', high: 'Alta', normal: 'Normal', low: 'Baixa',
 };
 
+const CANAL_COLORS: Record<string, string> = {
+  WhatsApp: '#25D366', 'E-mail': '#60a5fa', WebChat: '#a78bfa',
+  Instagram: '#e1306c', Telegram: '#0088cc', Facebook: '#1877f2',
+};
+
+const CANAL_ICONS: Record<string, React.ReactNode> = {
+  WhatsApp:  <MessageSquare size={14} className="text-emerald-400" />,
+  'E-mail':  <Mail size={14} className="text-blue-400" />,
+  WebChat:   <Inbox size={14} className="text-violet-400" />,
+  Instagram: <Activity size={14} className="text-rose-400" />,
+  Telegram:  <MessageSquare size={14} className="text-sky-400" />,
+  Facebook:  <Users size={14} className="text-blue-500" />,
+};
+
 // ── Helpers ─────────────────────────────────────────────────────
 
 const fmt = (val: number) =>
@@ -104,7 +118,6 @@ const fmtShort = (val: number): string => {
   return `R$${val.toFixed(0)}`;
 };
 
-/** Gera array de datas ISO (YYYY-MM-DD) do dia inicial até hoje (inclusive) */
 function generateDateRange(fromDateStr: string): string[] {
   const result: string[] = [];
   const start = new Date(fromDateStr + 'T12:00:00Z');
@@ -118,52 +131,112 @@ function generateDateRange(fromDateStr: string): string[] {
   return result;
 }
 
-// ── Tooltip ─────────────────────────────────────────────────────
+// ── Hooks ────────────────────────────────────────────────────────
+
+function useCountUp(target: number, duration = 700): number {
+  const [current, setCurrent] = useState(0);
+  useEffect(() => {
+    if (target === 0) { setCurrent(0); return; }
+    let rafId: number;
+    const start = Date.now();
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const t = Math.min(elapsed / duration, 1);
+      const eased = 1 - (1 - t) ** 3;
+      setCurrent(Math.round(eased * target));
+      if (t < 1) rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [target, duration]);
+  return current;
+}
+
+function useBarAnimate(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 120);
+    return () => clearTimeout(t);
+  }, []);
+  return ready;
+}
+
+// ── Tooltip — estilo Profound ───────────────────────────────────
 
 const CURRENCY_KEYS = new Set(['wonAmount', 'openPipelineAmount', 'open_amount', 'won_amount', 'weighted_forecast']);
 
-const DarkTooltip = ({ active, payload, label }: any) => {
+const ProfoundTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
+  const hasCurrency = payload.some((p: any) => CURRENCY_KEYS.has(p.dataKey));
+  const total: number | null = (hasCurrency && payload.length > 1)
+    ? payload.reduce((s: number, p: any) => s + (Number(p.value) || 0), 0)
+    : null;
   return (
-    <div className="bg-surface border border-border rounded-lg px-3 py-2 text-xs shadow-xl">
-      {label && <p className="text-stone-500 mb-1 font-mono">{label}</p>}
-      {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.color || p.fill }} className="text-text-main">
-          {p.name ? `${p.name}: ` : ''}
-          <strong>{CURRENCY_KEYS.has(p.dataKey) ? fmt(p.value) : p.value}</strong>
-        </p>
-      ))}
+    <div
+      className="border border-white/10 rounded-xl px-4 py-3 shadow-2xl min-w-[160px]"
+      style={{ background: 'rgba(8,8,8,0.96)', backdropFilter: 'blur(8px)' }}
+    >
+      {label && <p className="text-zinc-400 text-xs font-medium mb-2.5">{label}</p>}
+      <div className="space-y-1.5">
+        {payload.map((p: any, i: number) => (
+          <div key={i} className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color || p.fill }} />
+              <span className="text-zinc-400 text-xs">{p.name}</span>
+            </div>
+            <span className="text-white font-semibold text-xs">
+              {hasCurrency ? fmt(Number(p.value)) : p.value}
+            </span>
+          </div>
+        ))}
+      </div>
+      {total !== null && (
+        <>
+          <div className="h-px bg-white/10 my-2" />
+          <div className="flex items-center justify-between">
+            <span className="text-zinc-500 text-xs">Total</span>
+            <span className="text-white font-bold text-xs">{fmt(total)}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 };
 
-// ── Micro components ─────────────────────────────────────────────
+// ── HeroPill ─────────────────────────────────────────────────────
 
-/** Stat chip exibido no header hero */
-const HeroStat: React.FC<{
+const HERO_PILL_THEMES = {
+  emerald: 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400',
+  rose:    'bg-rose-500/10    border-rose-500/25    text-rose-400',
+  blue:    'bg-cyan-500/10    border-cyan-500/25    text-cyan-400',
+};
+
+const HeroPill: React.FC<{
   label: string;
   value: string;
   icon: React.ReactNode;
-  color: 'emerald' | 'rose' | 'blue' | 'amber';
-}> = ({ label, value, icon, color }) => {
-  const colors = {
-    emerald: 'bg-emerald-50  border-emerald-200  text-emerald-700  dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400',
-    rose:    'bg-rose-50     border-rose-200     text-rose-700     dark:bg-rose-500/10    dark:border-rose-500/20    dark:text-rose-400',
-    blue:    'bg-blue-50     border-blue-200     text-blue-700     dark:bg-blue-500/10    dark:border-blue-500/20    dark:text-blue-400',
-    amber:   'bg-amber-50    border-amber-200    text-amber-700    dark:bg-amber-500/10   dark:border-amber-500/20   dark:text-amber-400',
-  }[color];
-  return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${colors}`}>
-      <span className="shrink-0">{icon}</span>
-      <div>
-        <p className="text-[10px] font-mono uppercase tracking-wider opacity-60">{label}</p>
-        <p className="text-sm font-semibold leading-tight">{value}</p>
-      </div>
+  theme: 'emerald' | 'rose' | 'blue';
+}> = ({ label, value, icon, theme }) => (
+  <div className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border backdrop-blur-sm transition-all duration-200 hover:brightness-110 ${HERO_PILL_THEMES[theme]}`}>
+    <div className="shrink-0 opacity-80">{icon}</div>
+    <div>
+      <p className="text-[9px] font-mono uppercase tracking-[0.18em] opacity-60 mb-0.5">{label}</p>
+      <p className="text-[15px] font-bold leading-tight tabular-nums">{value}</p>
     </div>
-  );
+  </div>
+);
+
+// ── StatCard ──────────────────────────────────────────────────────
+
+const ACCENT_BG: Record<string, string> = {
+  'text-blue-400':    'bg-blue-400/10',
+  'text-violet-400':  'bg-violet-400/10',
+  'text-emerald-400': 'bg-emerald-400/10',
+  'text-rose-400':    'bg-rose-400/10',
+  'text-amber-400':   'bg-amber-400/10',
+  'text-orange-400':  'bg-orange-400/10',
 };
 
-/** Cartão KPI secundário */
 const StatCard: React.FC<{
   title: string;
   value: string | number;
@@ -173,25 +246,66 @@ const StatCard: React.FC<{
   trendDir?: 'up' | 'down' | 'flat';
   accent?: string;
   loading?: boolean;
-}> = ({ title, value, icon, subtitle, trend, trendDir, accent = 'text-stone-400', loading }) => {
-  if (loading) return <div className="glass-panel rounded-xl p-5 animate-pulse h-28" />;
+  delay?: number;
+}> = ({ title, value, icon, subtitle, trend, trendDir, accent = 'text-zinc-400', loading, delay = 0 }) => {
+  const numValue  = typeof value === 'number' ? value : 0;
+  const animated  = useCountUp(numValue, 800);
   const TrendIcon = trendDir === 'up' ? ArrowUpRight : trendDir === 'down' ? ArrowDownRight : Minus;
-  const trendColor = trendDir === 'up' ? 'text-emerald-600 dark:text-emerald-400' : trendDir === 'down' ? 'text-rose-600 dark:text-rose-400' : 'text-stone-500';
+  const trendColor = trendDir === 'up'
+    ? 'text-emerald-400'
+    : trendDir === 'down'
+      ? 'text-rose-400'
+      : 'text-zinc-500';
+
+  if (loading) {
+    return (
+      <div
+        className="card-animate rounded-2xl border border-white/[0.06] bg-white/[0.025] animate-pulse h-[120px]"
+        style={{ animationDelay: `${delay}ms` }}
+      >
+        <div className="p-5 space-y-3">
+          <div className="flex justify-between">
+            <div className="h-2 bg-white/[0.05] rounded w-24" />
+            <div className="w-8 h-8 bg-white/[0.05] rounded-lg" />
+          </div>
+          <div className="h-8 bg-white/[0.04] rounded w-20 mt-4" />
+        </div>
+      </div>
+    );
+  }
+
+  const isZero     = typeof value === 'number' && value === 0;
+  const valueColor = isZero
+    ? 'text-zinc-600'
+    : 'text-white';
+  const iconBg     = ACCENT_BG[accent] ?? 'bg-white/5';
+
   return (
-    <div className="glass-panel rounded-xl p-5 flex flex-col gap-4 hover:border-stone-300 dark:hover:border-white/10 transition-colors group">
+    <div
+      className="card-animate rounded-2xl border border-white/[0.06] bg-white/[0.025] hover:scale-[1.02] hover:border-white/[0.12] hover:bg-white/[0.04] transition-all duration-200 p-5 flex flex-col gap-3 group cursor-default"
+      style={{ animationDelay: `${delay}ms` }}
+    >
       <div className="flex items-start justify-between gap-2">
         <div>
-          <span className="text-[11px] text-stone-500 font-medium leading-snug">{title}</span>
-          {subtitle && <p className="text-[10px] text-stone-400 dark:text-stone-600 mt-0.5">{subtitle}</p>}
+          <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-zinc-500">{title}</p>
+          {subtitle && <p className="text-[10px] text-zinc-600 mt-0.5">{subtitle}</p>}
         </div>
-        <span className={`${accent} group-hover:opacity-100 opacity-60 transition-opacity shrink-0`}>{icon}</span>
+        <div className={`p-2 rounded-xl shrink-0 ${accent} ${iconBg} transition-all duration-200 group-hover:scale-110`}>{icon}</div>
       </div>
       <div>
-        <span className="text-[1.85rem] font-light tracking-tight text-text-main leading-none tabular-nums">{value}</span>
+        <p className={`text-4xl font-bold leading-none tabular-nums ${valueColor}`}>
+          {typeof value === 'number' ? animated.toLocaleString('pt-BR') : value}
+        </p>
         {trend && (
-          <div className={`flex items-center gap-0.5 mt-1.5 text-xs font-medium ${trendColor}`}>
-            <TrendIcon size={12} />
+          <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${trendColor}`}>
+            <TrendIcon size={11} />
             {trend}
+          </div>
+        )}
+        {isZero && !trend && (
+          <div className="flex items-center gap-1 mt-2 text-xs font-medium text-emerald-500">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+            Em dia
           </div>
         )}
       </div>
@@ -199,7 +313,8 @@ const StatCard: React.FC<{
   );
 };
 
-/** Painel de gráfico padrão */
+// ── Panel ─────────────────────────────────────────────────────────
+
 const Panel: React.FC<{
   title: string;
   subtitle?: string;
@@ -207,11 +322,11 @@ const Panel: React.FC<{
   children: React.ReactNode;
   className?: string;
 }> = ({ title, subtitle, action, children, className = '' }) => (
-  <div className={`glass-panel rounded-xl p-5 flex flex-col gap-4 ${className}`}>
+  <div className={`rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5 flex flex-col gap-4 transition-colors duration-200 hover:border-white/[0.09] ${className}`}>
     <div className="flex items-start justify-between gap-2">
       <div>
-        <h3 className="text-[11px] font-medium text-stone-500 dark:text-stone-400 uppercase tracking-widest">{title}</h3>
-        {subtitle && <p className="text-[10px] text-stone-400 dark:text-stone-600 mt-0.5">{subtitle}</p>}
+        <h3 className="text-[10px] font-mono uppercase tracking-[0.15em] text-zinc-500">{title}</h3>
+        {subtitle && <p className="text-[10px] text-zinc-600 mt-0.5">{subtitle}</p>}
       </div>
       {action}
     </div>
@@ -219,35 +334,40 @@ const Panel: React.FC<{
   </div>
 );
 
-/**
- * Barra de etapa do pipeline — proporcional ao TOTAL de deals em TODAS as etapas.
- * Assim Prospecção com 5 de 10 deals mostra 50%, não 100%.
- */
+// ── StageBar — ranking estilo premium ────────────────────────────
+
 const StageBar: React.FC<{
   label: string;
   count: number;
   value: number;
   color: string;
   totalCount: number;
-}> = ({ label, count, value, color, totalCount }) => {
-  const pct = totalCount > 0 ? Math.max(2, (count / totalCount) * 100) : 2;
+  rank: number;
+}> = ({ label, count, value, color, totalCount, rank }) => {
+  const barReady = useBarAnimate();
+  const pct = totalCount > 0 ? Math.max(4, (count / totalCount) * 100) : 4;
   return (
     <div className="flex items-center gap-3 group">
+      <span className="text-[10px] text-zinc-400 dark:text-zinc-600 w-4 shrink-0 text-right font-mono">{rank}</span>
       <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{label}</span>
-          <div className="flex items-center gap-2 shrink-0 ml-2">
-            <span className="text-[10px] text-stone-400 dark:text-stone-600 font-mono tabular-nums">
+        <div className="flex items-center justify-between mb-1.5 gap-2">
+          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{label}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono">
               {count} deal{count !== 1 ? 's' : ''}
             </span>
-            <span className="text-[11px] font-semibold text-stone-800 dark:text-stone-200">{fmtShort(value)}</span>
+            <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{fmtShort(value)}</span>
           </div>
         </div>
-        <div className="h-1 w-full bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden">
+        <div className="h-1.5 w-full bg-zinc-100 dark:bg-white/[0.05] rounded-full overflow-hidden">
           <div
-            className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${pct}%`, background: color }}
+            className="h-full rounded-full"
+            style={{
+              width: barReady ? `${pct}%` : '0%',
+              background: color,
+              transition: 'width 700ms cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
           />
         </div>
       </div>
@@ -255,7 +375,163 @@ const StageBar: React.FC<{
   );
 };
 
-/** Sinal de urgência */
+// ── BarRow — linha com barra inline (canal, prioridade, tarefa) ──
+
+const BarRow: React.FC<{
+  label: string;
+  count: number;
+  total: number;
+  color: string;
+  pulse?: boolean;
+  icon?: React.ReactNode;
+}> = ({ label, count, total, color, pulse, icon }) => {
+  const barReady = useBarAnimate();
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative shrink-0 flex items-center justify-center w-5 h-5">
+        {icon ?? (
+          <>
+            <div className="w-2 h-2 rounded-full" style={{ background: color }} />
+            {(pulse && count > 0) && (
+              <div
+                className="absolute w-2 h-2 rounded-full animate-ping opacity-50"
+                style={{ background: color }}
+              />
+            )}
+          </>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-1.5 gap-2">
+          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{label}</span>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-xs font-semibold text-zinc-900 dark:text-white tabular-nums">{count}</span>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono w-8 text-right tabular-nums">{pct}%</span>
+          </div>
+        </div>
+        <div className="h-1.5 w-full bg-zinc-100 dark:bg-white/[0.05] rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: barReady ? `${Math.max(3, pct)}%` : '0%',
+              background: color,
+              transition: 'width 700ms cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── FunnelRow — barra dupla sobrepostas para funil de conversão ──
+
+const FunnelRow: React.FC<{
+  rank: number;
+  name: string;
+  openDeals: number;
+  maxOpen: number;
+  wonDeals: number;
+  totalDeals: number;
+  openAmount: number;
+  convRate: number;
+}> = ({ rank, name, openDeals, maxOpen, wonDeals, totalDeals, openAmount, convRate }) => {
+  const barReady = useBarAnimate();
+  const openPct  = maxOpen > 0 ? Math.max(4, (openDeals / maxOpen) * 100) : 4;
+  const convPct  = totalDeals > 0 ? Math.max(0, (wonDeals / totalDeals) * 100) : 0;
+  const rateColor = convRate === 0 ? 'text-rose-400' : convRate >= 50 ? 'text-emerald-400' : 'text-zinc-400';
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-mono text-zinc-500 dark:text-zinc-600 bg-zinc-100 dark:bg-white/[0.05] shrink-0">
+        {rank}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-1.5 gap-2">
+          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{name}</span>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono">{openDeals} abertos</span>
+            <span className={`text-[10px] font-mono font-semibold ${rateColor}`}>{convRate}% conv.</span>
+            <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{fmtShort(openAmount)}</span>
+          </div>
+        </div>
+        <div className="relative h-1.5 w-full bg-zinc-100 dark:bg-white/[0.05] rounded-full overflow-hidden">
+          <div
+            className="absolute inset-y-0 left-0 h-full rounded-full bg-blue-300 dark:bg-white/10"
+            style={{
+              width: barReady ? `${openPct}%` : '0%',
+              transition: 'width 700ms cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          />
+          <div
+            className="absolute inset-y-0 left-0 h-full rounded-full bg-cyan-400"
+            style={{
+              width: barReady ? `${convPct}%` : '0%',
+              transition: 'width 800ms cubic-bezier(0.16, 1, 0.3, 1) 100ms',
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── AgentRow — ranking de agente estilo Rho ──────────────────────
+
+const AGENT_COLORS = ['#22D3EE', '#a78bfa', '#34d399', '#f59e0b', '#f43f5e', '#818cf8'];
+
+const AgentRow: React.FC<{
+  rank: number;
+  name: string;
+  dealsWon: number;
+  dealsTotal: number;
+  wonAmount: number;
+  maxAmount: number;
+  winRate: number;
+  colorIdx: number;
+}> = ({ rank, name, dealsWon, dealsTotal, wonAmount, maxAmount, winRate, colorIdx }) => {
+  const barReady = useBarAnimate();
+  const pct = maxAmount > 0 ? Math.max(4, (wonAmount / maxAmount) * 100) : 4;
+  const color = AGENT_COLORS[colorIdx % AGENT_COLORS.length];
+  const rateColor = winRate >= 50 ? 'text-emerald-400' : winRate >= 25 ? 'text-amber-400' : 'text-zinc-500';
+  const initial = name.charAt(0).toUpperCase();
+  return (
+    <div className="flex items-center gap-3 group">
+      <span className="text-[10px] text-zinc-400 dark:text-zinc-600 w-4 shrink-0 text-right font-mono">{rank}</span>
+      <div
+        className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
+        style={{ background: color + '33', border: `1.5px solid ${color}66` }}
+      >
+        <span style={{ color }}>{initial}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-1.5 gap-2">
+          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">{name}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono">{dealsWon}/{dealsTotal}</span>
+            <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-full border ${rateColor} border-current/20 bg-current/5`}>
+              {winRate}%
+            </span>
+            <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{fmtShort(wonAmount)}</span>
+          </div>
+        </div>
+        <div className="h-1.5 w-full bg-zinc-100 dark:bg-white/[0.05] rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: barReady ? `${pct}%` : '0%',
+              background: color,
+              transition: 'width 700ms cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── UrgencySignal ─────────────────────────────────────────────────
+
 const UrgencySignal: React.FC<{
   count: number;
   label: string;
@@ -271,21 +547,29 @@ const UrgencySignal: React.FC<{
     <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${styles}`}>
       <span className="shrink-0">{icon}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-lg font-semibold leading-none">{count}</p>
+        <p className="text-lg font-bold leading-none tabular-nums">{count}</p>
         <p className="text-[10px] font-mono uppercase tracking-wider opacity-70 mt-0.5">{label}</p>
       </div>
     </div>
   );
 };
 
+// ── SkeletonPanel ─────────────────────────────────────────────────
+
 const SkeletonPanel = ({ h = 'h-56' }: { h?: string }) => (
-  <div className={`glass-panel rounded-xl p-5 animate-pulse ${h}`}>
-    <div className="h-2.5 bg-stone-100 dark:bg-white/5 rounded w-1/5 mb-6" />
-    <div className="h-full bg-stone-100 dark:bg-white/5 rounded" />
+  <div className={`rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5 animate-pulse ${h}`}>
+    <div className="flex justify-between items-start mb-4">
+      <div>
+        <div className="h-2 bg-white/[0.05] rounded w-24 mb-2" />
+        <div className="h-1.5 bg-white/[0.03] rounded w-32" />
+      </div>
+      <div className="h-4 bg-white/[0.04] rounded w-16" />
+    </div>
+    <div className="flex-1 h-36 bg-white/[0.04] rounded-xl" />
   </div>
 );
 
-// ── Dashboard ────────────────────────────────────────────────────
+// ── Dashboard ─────────────────────────────────────────────────────
 
 export const Dashboard: React.FC = () => {
   const { currentCompany, companyRole, impersonatedUser } = useTenant();
@@ -309,8 +593,6 @@ export const Dashboard: React.FC = () => {
   const effectiveUserId = (impersonatedUser ?? user)?.id ?? null;
 
   // ── fetchKPIs ───────────────────────────────────────────────
-  // Separação deliberada: total_messages filtra por período (fluxo)
-  // os demais KPIs são snapshot do estado atual (sem filtro de data)
   const fetchKPIs = useCallback(async (activePeriod: Period) => {
     if (!currentCompany) return;
     setLoading(true); setError(null);
@@ -318,23 +600,18 @@ export const Dashboard: React.FC = () => {
     try {
       if (isAgentView && effectiveUserId) {
         const [convRes, messagesRes, leadsRes, qualifiedDealsRes, overdueRes] = await Promise.all([
-          // Conversas abertas do agente — snapshot atual
           supabase.from('conversations').select('id', { count: 'exact', head: true })
             .eq('company_id', currentCompany.id).eq('status', 'open').eq('assigned_to', effectiveUserId),
-          // Mensagens no período selecionado — fluxo
           supabase.from('messages')
             .select('id, conversations!inner(company_id, assigned_to)', { count: 'exact', head: true })
             .eq('conversations.company_id', currentCompany.id)
             .eq('conversations.assigned_to', effectiveUserId).gte('created_at', since),
-          // Leads em aberto do agente — snapshot atual
           supabase.from('contacts').select('id', { count: 'exact', head: true })
             .eq('company_id', currentCompany.id).eq('status', 'lead')
             .eq('owner_user_id', effectiveUserId),
-          // Leads qualificados = contatos com deal aberto sob este agente
           supabase.from('deals').select('contact_id')
             .eq('company_id', currentCompany.id).eq('status', 'open')
             .eq('owner_user_id', effectiveUserId).not('contact_id', 'is', null),
-          // Tarefas vencidas e não concluídas — snapshot atual
           supabase.from('tasks').select('id', { count: 'exact', head: true })
             .eq('company_id', currentCompany.id).eq('assigned_to_user_id', effectiveUserId)
             .lt('due_at', new Date().toISOString())
@@ -350,18 +627,14 @@ export const Dashboard: React.FC = () => {
         });
       } else {
         const [viewRes, messagesRes, qualifiedDealsRes, overdueRes] = await Promise.all([
-          // Snapshot atual via view analítica (total_leads e open_conversations)
           supabase.from('v_company_kpis')
             .select('total_leads, open_conversations')
             .eq('company_id', currentCompany.id).single(),
-          // Mensagens trocadas no período — fluxo
           supabase.from('messages')
             .select('id, conversations!inner(company_id)', { count: 'exact', head: true })
             .eq('conversations.company_id', currentCompany.id).gte('created_at', since),
-          // Leads qualificados = contatos distintos com deal aberto no pipeline
           supabase.from('deals').select('contact_id')
             .eq('company_id', currentCompany.id).eq('status', 'open').not('contact_id', 'is', null),
-          // Tarefas vencidas — query direta (v_company_kpis usa 'pending' que não existe no enum)
           supabase.from('tasks').select('id', { count: 'exact', head: true })
             .eq('company_id', currentCompany.id)
             .lt('due_at', new Date().toISOString())
@@ -415,15 +688,11 @@ export const Dashboard: React.FC = () => {
   }, [currentCompany, isAgentView, effectiveUserId]);
 
   // ── fetchCommercial ─────────────────────────────────────────
-  // REGRA: todos os campos usam created_at >= since para consistência com o período.
-  // Pipeline em aberto = deals com status='open' criados no período.
-  // Taxa de conversão = wonCount / totalInPeriod (fechados / entrados no período).
   const fetchCommercial = useCallback(async (activePeriod: Period) => {
     if (!currentCompany) return;
     setCommercialLoading(true);
     const since = periodToStartDate(activePeriod);
     try {
-      // Única query: todos os deals criados no período, independente de status
       const { data: dealsData } = await supabase
         .from('deals')
         .select('status, amount, pipeline_stages(name, color, position)')
@@ -455,7 +724,6 @@ export const Dashboard: React.FC = () => {
       }
 
       const totalInPeriod = (dealsData ?? []).length;
-      // Conversão: dos leads que ENTRARAM no período, quantos fecharam como ganhos
       const conversionRate = totalInPeriod > 0 ? Math.round((wonCount / totalInPeriod) * 100) : 0;
       const dealsByStage = Object.entries(stageMap)
         .map(([stage, v]) => ({ stage, ...v }))
@@ -471,25 +739,21 @@ export const Dashboard: React.FC = () => {
   }, [currentCompany]);
 
   // ── fetchTrend ──────────────────────────────────────────────
-  // Tenta v_kpi_company_daily (view on-the-fly, não precisa de cron).
-  // Se a view não existir ou retornar vazio, constrói a série de deals diretamente.
-  // open_pipeline_amount na view = coorte (deals criados naquele dia, ainda abertos hoje).
   const fetchTrend = useCallback(async (activePeriod: Period) => {
     if (!currentCompany) return;
     setTrendLoading(true);
     const sinceDate = periodToStartDate(activePeriod).substring(0, 10);
     try {
-      // ── Tenta a view analítica ─────────────────────────────
       const { data: viewData, error: viewErr } = await supabase
         .from('v_kpi_company_daily')
-        .select('reference_date, won_amount, open_pipeline_amount, new_deals, won_deals, lost_deals')
+        .select('snapshot_date, won_amount, open_pipeline_amount, new_deals, won_deals, lost_deals')
         .eq('company_id', currentCompany.id)
-        .gte('reference_date', sinceDate)
-        .order('reference_date', { ascending: true });
+        .gte('snapshot_date', sinceDate)
+        .order('snapshot_date', { ascending: true });
 
       if (!viewErr && viewData && viewData.length > 0) {
         setTrend(viewData.map(row => ({
-          date:               new Date(row.reference_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+          date:               new Date(row.snapshot_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
           wonAmount:          Number(row.won_amount)           || 0,
           openPipelineAmount: Number(row.open_pipeline_amount) || 0,
           newDeals:           row.new_deals   || 0,
@@ -500,9 +764,6 @@ export const Dashboard: React.FC = () => {
         return;
       }
 
-      // ── Fallback: constrói a série a partir da tabela deals ──
-      // updated_at como proxy para data de fechamento (won/lost),
-      // para cobrir deals antigos sem closed_at preenchido.
       const [wonRes, allRes] = await Promise.all([
         supabase.from('deals')
           .select('updated_at, amount')
@@ -546,21 +807,16 @@ export const Dashboard: React.FC = () => {
   }, [currentCompany]);
 
   // ── fetchAnalytics ──────────────────────────────────────────
-  // Sempre filtra por período (created_at >= since) para evitar acúmulo histórico.
-  // Isso garante que "Conversão do Pipeline" mostre apenas deals criados no período,
-  // corrigindo o percentual inflado por wins históricos de etapas anteriores.
   const fetchAnalytics = useCallback(async (activePeriod: Period) => {
     if (!currentCompany) return;
     setAnalyticsLoading(true);
     const since = periodToStartDate(activePeriod);
     try {
       const [convRes, agentRes] = await Promise.all([
-        // Deals criados no período, por etapa — fonte canônica da conversão
         supabase.from('deals')
           .select('status, amount, stage_id, pipeline_stages(name, position)')
           .eq('company_id', currentCompany.id)
           .gte('created_at', since),
-        // Performance por agente — também filtra pelo período
         isAgentView
           ? Promise.resolve({ data: [] as any[], error: null })
           : supabase.from('deals')
@@ -570,7 +826,6 @@ export const Dashboard: React.FC = () => {
               .gte('created_at', since),
       ]);
 
-      // ── Conversão do Pipeline por etapa ────────────────────
       if (convRes.data) {
         const map: Record<string, PipelineConversionRow> = {};
         for (const d of convRes.data) {
@@ -588,7 +843,6 @@ export const Dashboard: React.FC = () => {
         setPipelineConv(Object.values(map).sort((a, b) => a.position - b.position));
       }
 
-      // ── Performance por Agente ──────────────────────────────
       if (!isAgentView && agentRes.data) {
         const amap: Record<string, AgentPerfRow> = {};
         for (const d of agentRes.data) {
@@ -613,10 +867,7 @@ export const Dashboard: React.FC = () => {
     } finally { setAnalyticsLoading(false); }
   }, [currentCompany, isAgentView]);
 
-  // Só altera o período — os useEffects disparam os fetches automaticamente
-  const handlePeriodChange = useCallback((p: Period) => {
-    setPeriod(p);
-  }, []);
+  const handlePeriodChange = useCallback((p: Period) => { setPeriod(p); }, []);
 
   useEffect(() => {
     fetchKPIs(period); fetchCharts(period); fetchCommercial(period); fetchTrend(period); fetchAnalytics(period);
@@ -626,35 +877,44 @@ export const Dashboard: React.FC = () => {
     fetchKPIs(period); fetchCharts(period); fetchCommercial(period); fetchTrend(period); fetchAnalytics(period);
   }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Animated pipeline value for hero
+  const animatedPipeline = useCountUp(commercial?.pipelineValue ?? 0, 1000);
+
   if (!currentCompany) return (
-    <div className="p-8 text-stone-500 font-mono uppercase text-xs tracking-widest text-center mt-20">
+    <div className="p-8 text-zinc-500 font-mono uppercase text-xs tracking-widest text-center mt-20">
       Nenhuma empresa no contexto.
     </div>
   );
 
-  const hasTrendData     = trend.some(p => p.wonAmount > 0 || p.openPipelineAmount > 0 || p.newDeals > 0);
-  // total de deals em aberto por todas as etapas — denominador para proporção correta das barras
-  const totalStageCount  = commercial
+  const hasTrendData    = trend.some(p => p.wonAmount > 0 || p.openPipelineAmount > 0 || p.newDeals > 0);
+  const totalStageCount = commercial
     ? Math.max(1, commercial.dealsByStage.reduce((s, d) => s + d.count, 0))
     : 1;
-  const urgentConvs      = charts?.conversasPorPrioridade.find(p => p.prioridade === 'Urgente')?.total ?? 0;
-  const overdueTasks     = kpis?.overdue_tasks ?? 0;
-  const totalForecast    = pipelineConv.reduce((s, r) => s + (r.weighted_forecast ?? 0), 0);
+  const urgentConvs     = charts?.conversasPorPrioridade.find(p => p.prioridade === 'Urgente')?.total ?? 0;
+  const overdueTasks    = kpis?.overdue_tasks ?? 0;
+  const totalForecast   = pipelineConv.reduce((s, r) => s + (r.weighted_forecast ?? 0), 0);
+  const openDealCount   = commercial?.dealsByStage.reduce((s, d) => s + d.count, 0) ?? 0;
+  const periodLabel     = period === 'today' ? 'hoje' : period === '7d' ? 'últimos 7 dias' : period === '30d' ? 'este mês' : 'últimos 90 dias';
+  const maxOpenDeals    = Math.max(...pipelineConv.map(r => r.open_deals), 1);
+  const maxAgentAmount  = Math.max(...agentPerf.map(a => a.won_amount), 1);
+  const totalCanal      = charts?.conversasPorCanal.reduce((s, c) => s + c.total, 0) ?? 1;
+  const totalPrior      = charts?.conversasPorPrioridade.reduce((s, p) => s + p.total, 0) ?? 1;
+  const totalTasks      = charts?.tasksPorStatus.reduce((s, t) => s + t.total, 0) ?? 1;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 reveal active">
+    <div className="max-w-7xl mx-auto space-y-6 reveal active">
 
       {/* ══════════════════════════════════════════════════════════
-          HEADER
+          HEADER — ETAPA 10
       ══════════════════════════════════════════════════════════ */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-border pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-zinc-200 dark:border-white/[0.06]">
         <div>
-          <span className="text-[10px] font-mono uppercase text-stone-600 tracking-widest block mb-1.5">
+          <span className="text-[10px] font-mono uppercase tracking-widest text-orange-500 dark:text-orange-400 block mb-1.5">
             Visão Comercial
           </span>
-          <h1 className="text-3xl font-medium tracking-tight text-primary flex items-baseline gap-3">
+          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white flex items-baseline gap-3">
             Dashboard
-            <span className="text-stone-500 text-xl font-normal">{currentCompany.name}</span>
+            <span className="text-zinc-400 dark:text-zinc-500 text-xl font-normal">{currentCompany.name}</span>
           </h1>
         </div>
         <PeriodFilter value={period} onChange={handlePeriodChange} />
@@ -664,11 +924,11 @@ export const Dashboard: React.FC = () => {
           ERRO
       ══════════════════════════════════════════════════════════ */}
       {error && (
-        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-lg flex items-center justify-between text-sm">
+        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-xl flex items-center justify-between text-sm">
           <div className="flex items-center gap-2"><AlertCircle size={16} />{error}</div>
           <button
             onClick={() => { fetchKPIs(period); fetchCharts(period); }}
-            className="text-xs font-mono px-3 py-1.5 rounded bg-rose-500/20 hover:bg-rose-500/30 transition-colors"
+            className="text-xs font-mono px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 transition-colors"
           >
             Tentar novamente
           </button>
@@ -676,130 +936,130 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* ══════════════════════════════════════════════════════════
-          HERO STRIP — Pipeline em Aberto como KPI principal
+          HERO BLOCK — ETAPA 2
       ══════════════════════════════════════════════════════════ */}
-      <div className="glass-panel rounded-2xl p-6 relative overflow-hidden">
-        {/* faint glow accent — azul pois pipeline é o destaque */}
-        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-blue-500/5 blur-3xl pointer-events-none" />
+      <div className="relative rounded-2xl overflow-hidden border border-blue-500/20 bg-gradient-to-br from-blue-950/40 via-[#0A0A0B]/60 to-[#0A0A0B]/80 p-6 lg:p-8">
+        {/* Glow accent */}
+        <div className="absolute -top-40 -right-40 w-[28rem] h-[28rem] rounded-full bg-blue-600/[0.07] blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-64 h-32 bg-cyan-500/[0.04] blur-2xl pointer-events-none" />
 
-        <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-          {/* Pipeline em Aberto — número principal */}
+        <div className="relative flex flex-col lg:flex-row lg:items-center gap-6">
+
+          {/* Left: main pipeline value */}
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-mono uppercase tracking-widest text-stone-500 mb-0.5">
-              Pipeline em Aberto
+            <div className="flex items-center gap-2 mb-1">
+              <Zap size={12} className="text-blue-400 dark:text-blue-400" />
+              <p className="text-[10px] font-mono uppercase tracking-widest text-blue-500 dark:text-blue-400">
+                Pipeline em Aberto
+              </p>
+            </div>
+            <p className="text-[10px] font-mono text-zinc-400 dark:text-zinc-600 mb-3">
+              Deals criados no período · {periodLabel}
             </p>
-            <p className="text-[9px] font-mono text-stone-600 mb-2">
-              Deals criados no período · {period === 'today' ? 'hoje' : period === '7d' ? 'últimos 7 dias' : period === '30d' ? 'este mês' : 'últimos 90 dias'}
-            </p>
+
             {commercialLoading ? (
-              <div className="h-14 w-56 bg-stone-100 dark:bg-white/5 rounded-lg animate-pulse" />
+              <div className="h-16 w-56 bg-white/[0.05] rounded-xl animate-pulse" />
             ) : (
-              <div className="flex items-baseline gap-3 flex-wrap">
-                <span className="text-5xl font-light tracking-tight text-blue-600 dark:text-blue-400 tabular-nums">
-                  {fmtShort(commercial?.pipelineValue ?? 0)}
-                </span>
-                {(commercial?.dealsByStage.reduce((s, d) => s + d.count, 0) ?? 0) > 0 && (
-                  <span className="text-sm text-stone-500 font-mono">
-                    {commercial!.dealsByStage.reduce((s, d) => s + d.count, 0)} deal{commercial!.dealsByStage.reduce((s, d) => s + d.count, 0) !== 1 ? 's' : ''} em aberto no período
-                  </span>
+              <>
+                <p
+                  className="text-6xl font-black tracking-tight text-white tabular-nums leading-none"
+                  style={{ filter: 'drop-shadow(0 0 32px rgba(34,211,238,0.35)) drop-shadow(0 0 12px rgba(34,211,238,0.2))' }}
+                >
+                  {fmtShort(animatedPipeline)}
+                </p>
+                {openDealCount > 0 && (
+                  <p className="text-sm text-zinc-400 mt-2 font-mono">
+                    {openDealCount} deal{openDealCount !== 1 ? 's' : ''} em aberto
+                  </p>
                 )}
-              </div>
+                {openDealCount === 0 && !commercialLoading && (
+                  <p className="text-sm text-zinc-600 mt-2 font-mono">Nenhum deal em aberto no período</p>
+                )}
+              </>
             )}
           </div>
 
-          {/* Stats chips — receita e métricas secundárias */}
-          <div className="flex flex-wrap gap-2 lg:gap-3 lg:shrink-0">
+          {/* Center: sparkline */}
+          {(!trendLoading && hasTrendData && trend.some(p => p.openPipelineAmount > 0)) && (
+            <div className="flex-1 min-w-0 h-24 max-w-sm hidden lg:block opacity-80">
+              {/* height={96} matches h-24 so Recharts doesn't need to measure
+                  the parent (avoids height(-1) on first render and width/height(0)
+                  when display:none on mobile). debounce prevents premature paint. */}
+              <ResponsiveContainer width="100%" height={96} debounce={50}>
+                <AreaChart data={trend} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="heroSparkGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#22D3EE" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#22D3EE" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area
+                    type="monotone"
+                    dataKey="openPipelineAmount"
+                    stroke="#22D3EE"
+                    strokeWidth={2.5}
+                    fill="url(#heroSparkGrad)"
+                    dot={false}
+                    activeDot={{ r: 4, fill: '#22D3EE', strokeWidth: 0 }}
+                  />
+                  <Tooltip content={<ProfoundTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.06)', strokeWidth: 1 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Right: 3 KPI pills */}
+          <div className="flex flex-wrap lg:flex-col gap-2 lg:shrink-0">
             {commercialLoading ? (
-              <div className="h-14 w-64 bg-stone-100 dark:bg-white/5 rounded-lg animate-pulse" />
+              <>
+                <div className="h-14 w-48 bg-white/[0.05] rounded-xl animate-pulse" />
+                <div className="h-14 w-48 bg-white/[0.04] rounded-xl animate-pulse" />
+                <div className="h-14 w-48 bg-white/[0.03] rounded-xl animate-pulse" />
+              </>
             ) : commercial ? (
               <>
-                <HeroStat
+                <HeroPill
                   label="Receita Fechada"
                   value={fmtShort(commercial.wonValue)}
                   icon={<DollarSign size={14} />}
-                  color="emerald"
+                  theme="emerald"
                 />
-                <HeroStat
-                  label="Conversão (ganhos/entrados)"
+                <HeroPill
+                  label="Conversão"
                   value={`${commercial.conversionRate}%`}
                   icon={<Percent size={14} />}
-                  color="blue"
+                  theme="blue"
                 />
-                <HeroStat
-                  label="Perdidos no período"
+                <HeroPill
+                  label="Perdidos"
                   value={commercial.lostCount.toString()}
                   icon={<Trophy size={14} />}
-                  color="rose"
+                  theme="rose"
                 />
-                {totalForecast > 0 && (
-                  <HeroStat
-                    label="Forecast Ponderado"
-                    value={fmtShort(totalForecast)}
-                    icon={<TrendingUp size={14} />}
-                    color="amber"
-                  />
-                )}
               </>
             ) : null}
           </div>
         </div>
-
-        {/* Sparkline: pipeline em aberto ao longo do período */}
-        {!trendLoading && hasTrendData && trend.some(p => p.openPipelineAmount > 0) && (
-          <div className="mt-5 h-14">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trend} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="heroGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#60a5fa" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#60a5fa" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Area type="monotone" dataKey="openPipelineAmount" stroke="#60a5fa" strokeWidth={1.5}
-                  fill="url(#heroGrad)" dot={false} activeDot={{ r: 3, fill: '#60a5fa', strokeWidth: 0 }} />
-                <Tooltip content={<DarkTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.06)', strokeWidth: 1 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        )}
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          SINAIS DE URGÊNCIA
+          SINAIS DE URGÊNCIA (condicional)
       ══════════════════════════════════════════════════════════ */}
       {(!loading && !chartsLoading) && (urgentConvs > 0 || overdueTasks > 0) && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <UrgencySignal
-            count={urgentConvs}
-            label="Conversas Urgentes"
-            icon={<Zap size={16} />}
-            level={urgentConvs > 0 ? 'critical' : 'ok'}
-          />
-          <UrgencySignal
-            count={overdueTasks}
-            label="Tarefas Atrasadas"
-            icon={<Clock size={16} />}
-            level={overdueTasks >= 5 ? 'critical' : overdueTasks > 0 ? 'warn' : 'ok'}
-          />
-          <UrgencySignal
-            count={kpis?.open_conversations ?? 0}
-            label="Conversas Abertas"
-            icon={<Inbox size={16} />}
-            level="ok"
-          />
-          <UrgencySignal
-            count={kpis?.qualified_leads ?? 0}
-            label="Leads Qualificados"
-            icon={<BadgeCheck size={16} />}
-            level="ok"
-          />
+          <UrgencySignal count={urgentConvs} label="Conversas Urgentes" icon={<Zap size={16} />}
+            level={urgentConvs > 0 ? 'critical' : 'ok'} />
+          <UrgencySignal count={overdueTasks} label="Tarefas Atrasadas" icon={<Clock size={16} />}
+            level={overdueTasks >= 5 ? 'critical' : overdueTasks > 0 ? 'warn' : 'ok'} />
+          <UrgencySignal count={kpis?.open_conversations ?? 0} label="Conversas Abertas" icon={<Inbox size={16} />}
+            level="ok" />
+          <UrgencySignal count={kpis?.qualified_leads ?? 0} label="Leads Qualificados" icon={<BadgeCheck size={16} />}
+            level="ok" />
         </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════
-          FAIXA DE KPIs OPERACIONAIS
-          Snapshot: leads ativos, conversas abertas, qualificados, tarefas atrasadas
-          Fluxo (período): mensagens trocadas
+          KPI CARDS — ETAPA 3
       ══════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <StatCard
@@ -809,6 +1069,7 @@ export const Dashboard: React.FC = () => {
           icon={<MessageSquare size={15} />}
           accent="text-blue-400"
           loading={loading}
+          delay={0}
         />
         <StatCard
           title="Leads em Aberto"
@@ -817,6 +1078,7 @@ export const Dashboard: React.FC = () => {
           icon={<Target size={15} />}
           accent="text-violet-400"
           loading={loading}
+          delay={60}
         />
         <StatCard
           title="Conversas Abertas"
@@ -825,6 +1087,7 @@ export const Dashboard: React.FC = () => {
           icon={<Inbox size={15} />}
           accent="text-blue-400"
           loading={loading}
+          delay={120}
         />
         <StatCard
           title="Leads Qualificados"
@@ -833,6 +1096,7 @@ export const Dashboard: React.FC = () => {
           icon={<BadgeCheck size={15} />}
           accent="text-emerald-400"
           loading={loading}
+          delay={180}
         />
         <StatCard
           title="Tarefas Atrasadas"
@@ -847,103 +1111,109 @@ export const Dashboard: React.FC = () => {
           trendDir={kpis ? (kpis.overdue_tasks === 0 ? 'up' : 'down') : undefined}
           accent="text-rose-400"
           loading={loading}
+          delay={240}
         />
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          LINHA PRINCIPAL — Comparativo Pipeline vs Receita + Pipeline por Etapa
+          LINHA PRINCIPAL — Pipeline vs Receita + Pipeline por Etapa
+          ETAPAs 4 e 5
       ══════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-        {/* Comparativo: Pipeline em Aberto vs Receita Fechada */}
+        {/* ETApA 4 — Gráfico Pipeline vs Receita */}
         <div className="lg:col-span-2">
           {trendLoading ? (
-            <SkeletonPanel h="h-72" />
+            <SkeletonPanel h="h-80" />
           ) : (
             <Panel
               title="Pipeline vs Receita Fechada"
-              subtitle="Pipeline = coorte criado no dia · Receita = deals ganhos no dia"
+              subtitle={`Pipeline = coorte criado no dia · Receita = deals ganhos no dia · ${periodLabel}`}
               action={
-                <span className="flex items-center gap-1 text-[10px] font-mono text-stone-600 hover:text-stone-400 cursor-pointer transition-colors">
-                  Ver deals <ChevronRight size={10} />
-                </span>
+                <Link
+                  to="/deals"
+                  className="flex items-center gap-1 text-[10px] font-mono text-orange-500 dark:text-orange-400 hover:underline transition-colors shrink-0"
+                >
+                  ver deals <ChevronRight size={10} />
+                </Link>
               }
             >
               {hasTrendData ? (
                 <>
-                  <ResponsiveContainer width="100%" height={220}>
+                  <ResponsiveContainer width="100%" height={230} debounce={50}>
                     <ComposedChart data={trend} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                       <defs>
                         <linearGradient id="gradPipeline" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%"  stopColor="#60a5fa" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.02} />
+                          <stop offset="5%"  stopColor="#22D3EE" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#22D3EE" stopOpacity={0.02} />
                         </linearGradient>
                         <linearGradient id="gradWon" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%"  stopColor="#34d399" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#34d399" stopOpacity={0.05} />
+                          <stop offset="5%"  stopColor="#10B981" stopOpacity={0.5} />
+                          <stop offset="95%" stopColor="#10B981" stopOpacity={0.05} />
                         </linearGradient>
                       </defs>
-                      <XAxis dataKey="date" tick={{ fill: '#78716c', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                      <YAxis tickFormatter={fmtShort} tick={{ fill: '#78716c', fontSize: 10 }} axisLine={false} tickLine={false} width={54} />
-                      <Tooltip content={<DarkTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.06)', strokeWidth: 1 }} />
-                      {/* Pipeline em aberto — área azul, preenchida */}
+                      <CartesianGrid strokeDasharray="2 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                      <XAxis dataKey="date" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                      <YAxis tickFormatter={fmtShort} tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} width={54} />
+                      <Tooltip content={<ProfoundTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.06)', strokeWidth: 1 }} />
                       <Area
                         type="monotone"
                         dataKey="openPipelineAmount"
                         name="Pipeline Aberto"
-                        stroke="#60a5fa"
+                        stroke="#22D3EE"
                         strokeWidth={2}
                         fill="url(#gradPipeline)"
                         dot={false}
-                        activeDot={{ r: 4, fill: '#60a5fa', strokeWidth: 0 }}
+                        activeDot={{ r: 4, fill: '#22D3EE', strokeWidth: 0 }}
                       />
-                      {/* Receita fechada — barras verdes, eventos de conversão */}
                       <Bar
                         dataKey="wonAmount"
                         name="Receita Fechada"
                         fill="url(#gradWon)"
-                        stroke="#34d399"
+                        stroke="#10B981"
                         strokeWidth={1}
                         radius={[3, 3, 0, 0]}
-                        maxBarSize={24}
+                        maxBarSize={20}
                       />
                     </ComposedChart>
                   </ResponsiveContainer>
-                  <div className="flex items-center gap-5 text-[10px] text-stone-500 font-mono">
+                  <div className="flex items-center gap-5 text-[10px] text-zinc-500 font-mono mt-1">
                     <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-1.5 rounded-full inline-block bg-blue-400" />
+                      <span className="w-4 h-[3px] rounded-full inline-block bg-cyan-400" />
                       Pipeline Aberto
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-2.5 rounded-sm inline-block bg-emerald-400/80" />
+                      <span className="w-3 h-3 rounded-sm inline-block bg-emerald-500/80" />
                       Receita Fechada
                     </span>
                   </div>
                 </>
               ) : (
-                <div className="flex items-center justify-center h-52 text-stone-600 text-sm italic">
-                  Sem movimentação no período
+                <div className="flex flex-col items-center justify-center h-52 gap-3">
+                  <TrendingUp size={32} className="text-zinc-300 dark:text-zinc-700" />
+                  <p className="text-zinc-400 dark:text-zinc-600 text-sm">Sem movimentação no período</p>
                 </div>
               )}
             </Panel>
           )}
         </div>
 
-        {/* Pipeline por Etapa — barra proporcional à QUANTIDADE de deals */}
+        {/* ETAPA 5 — Pipeline por Etapa como ranking */}
         <div>
           {commercialLoading ? (
-            <SkeletonPanel h="h-72" />
+            <SkeletonPanel h="h-80" />
           ) : (
             <Panel
               title="Pipeline por Etapa"
-              subtitle="Deals abertos criados no período · barra proporcional à qtde"
+              subtitle="Deals abertos · barra proporcional à quantidade"
               className="h-full"
             >
               {commercial && commercial.dealsByStage.length > 0 ? (
                 <div className="space-y-4 flex-1">
-                  {commercial.dealsByStage.map(s => (
+                  {commercial.dealsByStage.map((s, i) => (
                     <StageBar
                       key={s.stage}
+                      rank={i + 1}
                       label={s.stage}
                       count={s.count}
                       value={s.value}
@@ -951,13 +1221,18 @@ export const Dashboard: React.FC = () => {
                       totalCount={totalStageCount}
                     />
                   ))}
-                  <div className="flex items-center justify-between pt-3 border-t border-border mt-4">
-                    <span className="text-[10px] text-stone-400 dark:text-stone-600 font-mono uppercase tracking-wider">Total em aberto</span>
-                    <span className="text-sm font-semibold text-stone-800 dark:text-stone-200">{fmt(commercial.pipelineValue)}</span>
+                  <div className="flex items-center justify-between pt-3 border-t border-white/[0.07] mt-2">
+                    <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">
+                      Total em aberto
+                    </span>
+                    <span className="text-xl font-bold text-white">{fmt(commercial.pipelineValue)}</span>
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-stone-600 italic py-8 text-center">Nenhum deal em aberto</p>
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Layers size={32} className="text-zinc-300 dark:text-zinc-700" />
+                  <p className="text-zinc-400 dark:text-zinc-600 text-sm text-center">Nenhum deal em aberto</p>
+                </div>
               )}
             </Panel>
           )}
@@ -965,78 +1240,109 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          LINHA 2 — Atividade do Pipeline + Origem por Canal
+          LINHA 2 — Atividade do Pipeline + Conversas por Canal
+          ETAPAs 6 e 7
       ══════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-        {/* Atividade do pipeline — novos, ganhos e perdidos por dia */}
+        {/* ETAPA 6 — Atividade do Pipeline: barras arredondadas */}
         {trendLoading ? <SkeletonPanel /> : (
           <Panel title="Atividade do Pipeline" subtitle="Novos, ganhos e perdidos por dia no período">
             {hasTrendData && trend.some(p => p.newDeals > 0 || p.wonDeals > 0 || p.lostDeals > 0) ? (
               <>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={trend} barSize={5} barGap={2} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                    <XAxis dataKey="date" tick={{ fill: '#78716c', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{ fill: '#78716c', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip content={<DarkTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                    <Bar dataKey="newDeals"  name="Novos"    fill="#60a5fa" radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="wonDeals"  name="Ganhos"   fill="#34d399" radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="lostDeals" name="Perdidos" fill="#f43f5e" radius={[2, 2, 0, 0]} />
+                <ResponsiveContainer width="100%" height={200} debounce={50}>
+                  <BarChart data={trend} barSize={6} barGap={2} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="2 6" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip content={<ProfoundTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                    <Bar dataKey="newDeals"  name="Novos"    fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="wonDeals"  name="Ganhos"   fill="#10B981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="lostDeals" name="Perdidos" fill="#EF444460" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-                <div className="flex items-center gap-4 text-[10px] text-stone-500 font-mono">
-                  {([['#60a5fa', 'Novos'], ['#34d399', 'Ganhos'], ['#f43f5e', 'Perdidos']] as [string, string][]).map(([color, label]) => (
+                <div className="flex items-center gap-4 text-[10px] text-zinc-500 font-mono">
+                  {([['#3B82F6', 'Novos'], ['#10B981', 'Ganhos'], ['#EF4444', 'Perdidos']] as [string, string][]).map(([color, label]) => (
                     <span key={label} className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-sm inline-block" style={{ background: color }} />{label}
+                      <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: color + (label === 'Perdidos' ? '80' : '') }} />
+                      {label}
                     </span>
                   ))}
                 </div>
               </>
             ) : commercial && commercial.dealsByStatus.length > 0 ? (
-              <div className="flex items-center justify-center gap-8">
-                <ResponsiveContainer width="50%" height={180}>
-                  <PieChart>
-                    <Pie data={commercial.dealsByStatus} dataKey="total" nameKey="status" cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3}>
-                      {commercial.dealsByStatus.map((e, i) => <Cell key={i} fill={e.color} />)}
-                    </Pie>
-                    <Tooltip content={<DarkTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex flex-col gap-2.5 text-xs">
-                  {commercial.dealsByStatus.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: item.color }} />
-                      <span className="text-stone-400">{item.status}</span>
-                      <span className="text-stone-700 dark:text-stone-200 font-medium ml-auto pl-4">{item.total}</span>
-                    </div>
-                  ))}
-                </div>
+              <div className="space-y-3 py-2">
+                {commercial.dealsByStatus.map((item) => (
+                  <BarRow
+                    key={item.status}
+                    label={item.status}
+                    count={item.total}
+                    total={Math.max(1, commercial.dealsByStatus.reduce((s, d) => s + d.total, 0))}
+                    color={item.color}
+                  />
+                ))}
               </div>
             ) : (
-              <p className="text-sm text-stone-400 italic py-8 text-center">Sem dados de pipeline</p>
+              <div className="flex flex-col items-center justify-center h-44 gap-3">
+                <Activity size={32} className="text-zinc-300 dark:text-zinc-700" />
+                <p className="text-zinc-400 dark:text-zinc-600 text-sm">Sem dados de pipeline</p>
+              </div>
             )}
           </Panel>
         )}
 
-        {/* Conversas por canal no período */}
+        {/* ETAPA 7 — Conversas por Canal: lista com barra inline + % */}
         {chartsLoading ? <SkeletonPanel /> : (
-          <Panel title="Conversas por Canal" subtitle={`Volume no período — ${period === 'today' ? 'hoje' : period === '7d' ? '7 dias' : period === '30d' ? 'este mês' : '90 dias'}`}>
+          <Panel
+            title="Conversas por Canal"
+            subtitle={`Volume no período — ${periodLabel}`}
+          >
             {charts && charts.conversasPorCanal.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={charts.conversasPorCanal} barSize={28} margin={{ top: 4, right: 8, left: -22, bottom: 0 }}>
-                  <XAxis dataKey="canal" tick={{ fill: '#78716c', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#78716c', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<DarkTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                  <Bar dataKey="total" name="Conversas" fill="#60a5fa" radius={[4, 4, 0, 0]}>
-                    {charts.conversasPorCanal.map((_, i) => {
-                      const colors = ['#60a5fa', '#818cf8', '#a78bfa', '#34d399', '#f59e0b'];
-                      return <Cell key={i} fill={colors[i % colors.length]} />;
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="space-y-4 flex-1">
+                {charts.conversasPorCanal.length === 1 && charts.conversasPorCanal[0] ? (
+                  // Card de destaque quando há apenas um canal
+                  <div className="flex items-center justify-between py-4 px-2">
+                    <div className="flex items-center gap-4">
+                      <div
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                        style={{
+                          background: (CANAL_COLORS[charts.conversasPorCanal[0].canal] ?? '#22D3EE') + '15',
+                          boxShadow: `0 0 20px ${(CANAL_COLORS[charts.conversasPorCanal[0].canal] ?? '#22D3EE')}20`,
+                        }}
+                      >
+                        <span className="scale-150">
+                          {CANAL_ICONS[charts.conversasPorCanal[0].canal] ?? <MessageSquare size={22} className="text-cyan-400" />}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                          {charts.conversasPorCanal[0].canal}
+                        </p>
+                        <p className="text-4xl font-bold text-white tabular-nums">
+                          {charts.conversasPorCanal[0].total}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-2xl font-bold text-zinc-700">100%</span>
+                  </div>
+                ) : (
+                  charts.conversasPorCanal.map(c => (
+                    <BarRow
+                      key={c.canal}
+                      label={c.canal}
+                      count={c.total}
+                      total={totalCanal}
+                      color={CANAL_COLORS[c.canal] ?? '#60a5fa'}
+                      icon={CANAL_ICONS[c.canal]}
+                    />
+                  ))
+                )}
+              </div>
             ) : (
-              <p className="text-sm text-stone-600 italic py-8 text-center">Sem conversas no período</p>
+              <div className="flex flex-col items-center justify-center h-44 gap-3">
+                <MessageSquare size={32} className="text-zinc-300 dark:text-zinc-700" />
+                <p className="text-zinc-400 dark:text-zinc-600 text-sm">Sem conversas no período</p>
+              </div>
             )}
           </Panel>
         )}
@@ -1044,6 +1350,7 @@ export const Dashboard: React.FC = () => {
 
       {/* ══════════════════════════════════════════════════════════
           LINHA 3 — Tarefas + Prioridade de Conversas
+          ETAPA 8
       ══════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {chartsLoading ? (
@@ -1055,53 +1362,45 @@ export const Dashboard: React.FC = () => {
           <>
             <Panel title="Tarefas" subtitle="Distribuição por status no período">
               {charts.tasksPorStatus.length > 0 ? (
-                <div className="flex items-center gap-4 flex-1">
-                  <ResponsiveContainer width="50%" height={150}>
-                    <PieChart>
-                      <Pie data={charts.tasksPorStatus} dataKey="total" nameKey="status" cx="50%" cy="50%" innerRadius={42} outerRadius={62} paddingAngle={3}>
-                        {charts.tasksPorStatus.map((e, i) => <Cell key={i} fill={e.color} />)}
-                      </Pie>
-                      <Tooltip content={<DarkTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex flex-col gap-2 text-[11px] flex-1 min-w-0">
-                    {charts.tasksPorStatus.map((item, i) => (
-                      <div key={i} className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: item.color }} />
-                        <span className="text-stone-500 truncate">{item.status}</span>
-                        <span className="text-stone-700 dark:text-stone-200 font-medium ml-auto pl-2">{item.total}</span>
-                      </div>
-                    ))}
-                  </div>
+                <div className="space-y-4 flex-1">
+                  {charts.tasksPorStatus.map(item => (
+                    <BarRow
+                      key={item.status}
+                      label={item.status}
+                      count={item.total}
+                      total={totalTasks}
+                      color={item.color}
+                    />
+                  ))}
                 </div>
               ) : (
-                <p className="text-sm text-stone-600 italic py-8 text-center">Sem tarefas no período</p>
+                <div className="flex flex-col items-center justify-center py-8 gap-3">
+                  <Clock size={28} className="text-zinc-300 dark:text-zinc-700" />
+                  <p className="text-zinc-400 dark:text-zinc-600 text-sm">Sem tarefas no período</p>
+                </div>
               )}
             </Panel>
 
+            {/* ETAPA 8 — Conversas por Prioridade sem donut */}
             <Panel title="Conversas por Prioridade" subtitle="Nível de urgência no período">
               {charts.conversasPorPrioridade.length > 0 ? (
-                <div className="flex items-center gap-4 flex-1">
-                  <ResponsiveContainer width="50%" height={150}>
-                    <PieChart>
-                      <Pie data={charts.conversasPorPrioridade} dataKey="total" nameKey="prioridade" cx="50%" cy="50%" innerRadius={42} outerRadius={62} paddingAngle={3}>
-                        {charts.conversasPorPrioridade.map((e, i) => <Cell key={i} fill={e.color} />)}
-                      </Pie>
-                      <Tooltip content={<DarkTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex flex-col gap-2 text-[11px] flex-1 min-w-0">
-                    {charts.conversasPorPrioridade.map((item, i) => (
-                      <div key={i} className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: item.color }} />
-                        <span className="text-stone-500 truncate">{item.prioridade}</span>
-                        <span className="text-stone-700 dark:text-stone-200 font-medium ml-auto pl-2">{item.total}</span>
-                      </div>
-                    ))}
-                  </div>
+                <div className="space-y-4 flex-1">
+                  {charts.conversasPorPrioridade.map(item => (
+                    <BarRow
+                      key={item.prioridade}
+                      label={item.prioridade}
+                      count={item.total}
+                      total={totalPrior}
+                      color={item.color}
+                      pulse={item.prioridade === 'Urgente'}
+                    />
+                  ))}
                 </div>
               ) : (
-                <p className="text-sm text-stone-600 italic py-8 text-center">Sem conversas no período</p>
+                <div className="flex flex-col items-center justify-center py-8 gap-3">
+                  <Zap size={28} className="text-zinc-300 dark:text-zinc-700" />
+                  <p className="text-zinc-400 dark:text-zinc-600 text-sm">Sem conversas no período</p>
+                </div>
               )}
             </Panel>
           </>
@@ -1109,123 +1408,114 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          ANALYTICS AVANÇADOS — dados reais das views analíticas
+          ANALYTICS AVANÇADOS — ETAPA 9
       ══════════════════════════════════════════════════════════ */}
-      <div className="border-t border-border pt-8">
+      <div className="border-t border-white/[0.06] pt-8">
         <div className="flex items-center gap-2 mb-6">
-          <Activity size={13} className="text-stone-400 dark:text-stone-600" />
-          <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-stone-400 dark:text-stone-600">Analytics Avançados</span>
-          <div className="flex-1 h-px bg-border/50" />
+          <Activity size={13} className="text-zinc-600" />
+          <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-zinc-600">
+            Analytics Avançados
+          </span>
+          <div className="flex-1 h-px bg-white/[0.05]" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-          {/* Conversão do Pipeline por Etapa */}
+          {/* ETAPA 9.1 — Conversão do Pipeline: barras duplas sobrepostas */}
           {analyticsLoading ? <SkeletonPanel /> : (
             <Panel
               title="Conversão do Pipeline"
-              subtitle="Deals criados no período por etapa · conv. = ganhos / total entrados"
+              subtitle="Deals criados no período · barra: abertos vs ganhos"
             >
               {pipelineConv.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {pipelineConv.map((row, i) => {
-                    const advanceRate = row.total_deals > 0
+                    const convRate = row.total_deals > 0
                       ? Math.round((row.won_deals / row.total_deals) * 100)
                       : 0;
                     return (
-                      <div key={i} className="flex items-center gap-3 group">
-                        <div className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-mono text-stone-600 bg-stone-100 dark:bg-white/5 shrink-0">
-                          {i + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-0.5 gap-2">
-                            <span className="text-[11px] text-stone-500 dark:text-stone-400 truncate">{row.stage_name}</span>
-                            <div className="flex items-center gap-3 shrink-0">
-                              <span className="text-[10px] text-stone-400 font-mono">{row.open_deals} abertos</span>
-                              <span className="text-[10px] text-emerald-500 font-mono">{advanceRate}% conv.</span>
-                              <span className="text-[11px] font-semibold text-stone-800 dark:text-stone-200">{fmtShort(row.open_amount)}</span>
-                            </div>
-                          </div>
-                          <div className="h-1 w-full bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-blue-400 rounded-full transition-all duration-700"
-                              style={{ width: `${Math.max(4, (row.open_deals / Math.max(...pipelineConv.map(r => r.open_deals), 1)) * 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
+                      <FunnelRow
+                        key={i}
+                        rank={i + 1}
+                        name={row.stage_name}
+                        openDeals={row.open_deals}
+                        maxOpen={maxOpenDeals}
+                        wonDeals={row.won_deals}
+                        totalDeals={row.total_deals}
+                        openAmount={row.open_amount}
+                        convRate={convRate}
+                      />
                     );
                   })}
                   {totalForecast > 0 && (
-                    <div className="flex items-center justify-between pt-3 border-t border-border">
-                      <span className="text-[10px] text-stone-400 font-mono uppercase tracking-wider">Forecast ponderado total</span>
-                      <span className="text-sm font-semibold text-amber-500 dark:text-amber-400">{fmt(totalForecast)}</span>
+                    <div className="flex items-center justify-between pt-3 border-t border-white/[0.07]">
+                      <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">
+                        Forecast ponderado total
+                      </span>
+                      <span className="text-sm font-bold text-amber-400">{fmt(totalForecast)}</span>
                     </div>
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-stone-600 italic py-8 text-center">
-                  Nenhum deal encontrado para este pipeline
-                </p>
+                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                  <TrendingUp size={32} className="text-zinc-300 dark:text-zinc-700" />
+                  <p className="text-zinc-400 dark:text-zinc-600 text-sm">Nenhum deal encontrado para este pipeline</p>
+                </div>
               )}
             </Panel>
           )}
 
-          {/* Ranking de Agentes */}
+          {/* ETAPA 9.2 — Performance por Agente com empty state premium */}
           {!isAgentView && (
             analyticsLoading ? <SkeletonPanel /> : (
               <Panel
                 title="Performance por Agente"
-                subtitle="Receita gerada · win rate (acumulado)"
+                subtitle="Receita gerada no período · win rate"
                 action={
-                  <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded border border-stone-300/30 bg-stone-50 text-stone-500 dark:border-white/10 dark:bg-white/5 dark:text-stone-400">
-                    Acumulado
+                  <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/5 text-zinc-500 dark:text-zinc-400">
+                    Período
                   </span>
                 }
               >
                 {agentPerf.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {agentPerf.map((agent, i) => (
-                      <div key={agent.user_id} className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-full bg-surface-hover border border-border flex items-center justify-center text-[10px] font-semibold text-text-muted uppercase shrink-0">
-                          {agent.full_name?.charAt(0) ?? '?'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2 mb-0.5">
-                            <span className="text-[11px] text-stone-500 dark:text-stone-300 truncate font-medium">{agent.full_name}</span>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <span className="text-[10px] text-stone-400 font-mono">{agent.deals_won}/{agent.deals_total} deals</span>
-                              <span className="text-[10px] text-emerald-500 font-mono">{Math.round(agent.win_rate_pct ?? 0)}%</span>
-                              <span className="text-[11px] font-semibold text-stone-800 dark:text-stone-200">{fmtShort(agent.won_amount)}</span>
-                            </div>
-                          </div>
-                          <div className="h-1 w-full bg-stone-100 dark:bg-white/5 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-700"
-                              style={{
-                                width: `${Math.max(4, (agent.won_amount / Math.max(...agentPerf.map(a => a.won_amount), 1)) * 100)}%`,
-                                background: ['#60a5fa', '#a78bfa', '#34d399', '#f59e0b', '#f43f5e', '#818cf8'][i % 6],
-                              }}
-                            />
-                          </div>
-                        </div>
-                        {agent.avg_first_response_min !== null && (
-                          <div className="shrink-0 text-right">
-                            <p className="text-[9px] text-stone-600 font-mono leading-none">1ª resp.</p>
-                            <p className="text-[10px] text-stone-400 font-mono mt-0.5">
-                              {agent.avg_first_response_min < 60
-                                ? `${Math.round(agent.avg_first_response_min)}min`
-                                : `${(agent.avg_first_response_min / 60).toFixed(1)}h`}
-                            </p>
-                          </div>
-                        )}
-                      </div>
+                      <AgentRow
+                        key={agent.user_id}
+                        rank={i + 1}
+                        name={agent.full_name}
+                        dealsWon={agent.deals_won}
+                        dealsTotal={agent.deals_total}
+                        wonAmount={agent.won_amount}
+                        maxAmount={maxAgentAmount}
+                        winRate={Math.round(agent.win_rate_pct ?? 0)}
+                        colorIdx={i}
+                      />
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-stone-600 italic py-8 text-center">
-                    Nenhum deal com responsável atribuído encontrado
-                  </p>
+                  <div className="flex flex-col items-center justify-center py-10 gap-4">
+                    <div
+                      className="w-16 h-16 rounded-full border-2 border-dashed border-zinc-700 flex items-center justify-center"
+                      style={{ boxShadow: '0 0 20px rgba(255,255,255,0.02)' }}
+                    >
+                      <Users size={26} className="text-zinc-600" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-zinc-400 text-sm font-medium">
+                        Nenhum deal com responsável atribuído
+                      </p>
+                      <p className="text-zinc-600 text-xs mt-1.5">
+                        Atribua deals a agentes para ver a performance individual
+                      </p>
+                    </div>
+                    <Link
+                      to="/deals"
+                      className="text-[10px] font-mono uppercase tracking-widest px-5 py-2.5 rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all duration-200"
+                    >
+                      Atribuir Deals
+                    </Link>
+                  </div>
                 )}
               </Panel>
             )

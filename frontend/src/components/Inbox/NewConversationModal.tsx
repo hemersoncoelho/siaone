@@ -46,7 +46,7 @@ export const NewConversationModal: React.FC<NewConversationModalProps> = ({ isOp
           p_channel: channel,
           p_identity: identity,
           p_initial_message: message,
-          p_agent_id: user.id
+          p_agent_id: null
        });
 
        if (error) throw error;

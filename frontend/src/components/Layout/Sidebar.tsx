@@ -6,6 +6,7 @@ import {
   Inbox,
   CheckSquare,
   Kanban,
+  CalendarDays,
   Bot,
   UsersRound,
   Group,
@@ -39,6 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
       { icon: Inbox, label: 'Inbox', to: '/inbox' },
       { icon: CheckSquare, label: 'Tarefas', to: '/tasks' },
       { icon: Kanban, label: 'Pipeline', to: '/deals' },
+      { icon: CalendarDays, label: 'Agenda', to: '/agenda' },
     ],
   },
   {

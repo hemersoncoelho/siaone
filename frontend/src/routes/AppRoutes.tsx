@@ -21,6 +21,8 @@ const CompanySettings = lazy(() => import('../pages/CompanySettings').then(m => 
 const MembersPage = lazy(() => import('../pages/company/Members').then(m => ({ default: m.MembersPage })));
 const TeamsPage = lazy(() => import('../pages/company/Teams').then(m => ({ default: m.TeamsPage })));
 const IntegrationsPage = lazy(() => import('../pages/company/Integrations').then(m => ({ default: m.IntegrationsPage })));
+const AgendaPage = lazy(() => import('../pages/Agenda').then(m => ({ default: m.AgendaPage })));
+const AgendaSettings = lazy(() => import('../pages/AgendaSettings').then(m => ({ default: m.AgendaSettings })));
 
 const PageSkeleton = () => (
   <div className="max-w-7xl mx-auto space-y-8 animate-pulse">
@@ -82,6 +84,8 @@ export const AppRoutes: React.FC = () => {
         <Route path="members" element={<Suspense fallback={<PageSkeleton />}><MembersPage /></Suspense>} />
         <Route path="teams" element={<Suspense fallback={<PageSkeleton />}><TeamsPage /></Suspense>} />
         <Route path="integrations" element={<AgentRestrictedRoute><Suspense fallback={<PageSkeleton />}><IntegrationsPage /></Suspense></AgentRestrictedRoute>} />
+        <Route path="agenda" element={<Suspense fallback={<PageSkeleton />}><AgendaPage /></Suspense>} />
+        <Route path="agenda/configuracoes" element={<Suspense fallback={<PageSkeleton />}><AgendaSettings /></Suspense>} />
         <Route path="settings" element={<div className="text-stone-400 p-8">Configurações gerais em breve.</div>} />
         <Route path="settings/team" element={<Suspense fallback={<PageSkeleton />}><CompanySettings /></Suspense>} />
       </Route>
@@ -97,7 +101,7 @@ export const AppRoutes: React.FC = () => {
       >
         <Route index element={<Navigate to="companies" replace />} />
         <Route path="companies" element={<CompaniesList />} />
-        <Route path="companies/:id" element={<CompanyDetails />} />
+        <Route path="companies/:companyId" element={<CompanyDetails />} />
         <Route path="users" element={<UsersList />} />
         <Route path="modules" element={<ModulesList />} />
         <Route path="support" element={<SupportPanel />} />

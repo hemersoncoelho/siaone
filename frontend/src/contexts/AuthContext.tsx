@@ -31,6 +31,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // concurrent subscriptions and two concurrent profile fetches. The counter
   // ensures only the LATEST fetch's result is applied to state.
   const fetchGenRef = React.useRef(0);
+  // Mirrors the `user` state synchronously so async callbacks can read the
+  // current value without relying on stale closure captures. Updated alongside
+  // every setUser call.
+  const userRef = React.useRef<UserProfile | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -54,6 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session) {
         await handleSessionUpdate(session);
       } else {
+        userRef.current = null;
         setUser(null);
         profileLoadedRef.current = false;
         setSessionState('unauthenticated');
@@ -104,43 +109,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Every guard that checks for admin access MUST check for BOTH 'system_admin'
         // AND 'platform_admin' to remain safe against future DB or mapping changes.
         profileLoadedRef.current = true;
-        setUser({
+        const resolved: UserProfile = {
           id: profile.id,
           email: session.user.email || '',
           full_name: profile.full_name,
           avatar_url: profile.avatar_url,
           role: (profile.system_role === 'platform_admin' ? 'system_admin' : profile.system_role) as Role,
-        });
+        };
+        userRef.current = resolved;
+        setUser(resolved);
       } else {
-        // Fallback: use metadata from the session JWT. We do NOT default to 'agent'
-        // because a high-privilege user (platform_admin) who hits a timeout would
-        // briefly get the wrong role, triggering Guards to redirect and crash the DOM.
-        // Instead we keep the previously known role if user is already set, or fall
-        // back to 'agent' only on first login when no prior state exists.
-        console.warn('[Auth] Profile fetch failed, using fallback role:', error?.message);
-        setUser(prev => prev ?? {
-          id: session.user.id,
-          email: session.user.email || '',
-          full_name: session.user.user_metadata?.full_name || 'Usuário',
-          avatar_url: undefined,
-          role: 'agent',
-        });
+        // Timeout or error on profile fetch.
+        // If a valid user was already loaded (token-refresh race), preserve it.
+        // If this is the FIRST load (userRef is null), do NOT apply the 'agent'
+        // fallback — guards would fire with the wrong role, causing redirects.
+        // Instead stay in 'loading'; the next auth event (TOKEN_REFRESHED /
+        // SIGNED_IN) will trigger a retry that should succeed.
+        console.warn('[Auth] Profile fetch failed, will retry on next auth event:', error?.message);
+        // userRef.current is unchanged: either the existing valid user or null.
+        // setUser is intentionally not called here when userRef is null.
       }
     } catch (err) {
       if (!mountedRef.current || fetchGenRef.current !== myGen) return;
       console.error('[Auth] Unexpected error fetching profile:', err);
-      setUser(prev => prev ?? {
-        id: session.user.id,
-        email: session.user.email || '',
-        full_name: session.user.user_metadata?.full_name || 'Usuário',
-        avatar_url: undefined,
-        role: 'agent',
-      });
+      // Same policy: preserve existing user, do not apply fallback on first load.
     } finally {
       if (!mountedRef.current || fetchGenRef.current !== myGen) return;
       setProfileLoading(false);
-      setSessionState('authenticated');
-      console.log('[Auth] State set to authenticated');
+      // Only transition to 'authenticated' if we actually have a resolved user.
+      // If userRef.current is null the state stays 'loading' until the retry succeeds.
+      if (userRef.current !== null) {
+        setSessionState('authenticated');
+        console.log('[Auth] State set to authenticated');
+      }
     }
   };
 
@@ -187,6 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     setSessionState('loading');
     profileLoadedRef.current = false;
+    userRef.current = null;
     await supabase.auth.signOut();
     setUser(null);
     setImpersonated(null);

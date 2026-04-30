@@ -512,6 +512,9 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
   const { currentCompany } = useTenant();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [oldestMsgAt, setOldestMsgAt] = useState<string | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('context');
   const [sendError, setSendError] = useState<string | null>(null);
@@ -715,44 +718,81 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
     };
   }, []);
 
+  const MSG_PAGE_SIZE = 50;
+
+  const MSG_COLS = [
+    'id', 'public_id', 'conversation_id', 'direction', 'message_type',
+    'sender_type', 'sender_user_id', 'body', 'media_url', 'media_mime_type',
+    'media_filename', 'metadata', 'status', 'is_internal',
+    'ai_agent_id', 'ai_agent_name', 'created_at',
+  ].join(', ');
+
+  const enrichWithNames = useCallback(async (rows: any[]): Promise<Message[]> => {
+    const senderIds = [...new Set(rows.map((m) => m.sender_user_id).filter(Boolean))];
+    let nameMap: Record<string, string> = {};
+    if (senderIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, full_name')
+        .in('id', senderIds);
+      if (profiles) {
+        nameMap = Object.fromEntries(profiles.map((p) => [p.id, p.full_name]));
+      }
+    }
+    return rows.map((m) => normalizeMessage({ ...m, _sender_name: nameMap[m.sender_user_id] ?? null }));
+  }, [normalizeMessage]);
+
+  const handleLoadMore = useCallback(async (conversationId: string) => {
+    if (!oldestMsgAt || loadingMore) return;
+    setLoadingMore(true);
+    const { data } = await supabase
+      .from('messages')
+      .select(MSG_COLS)
+      .eq('conversation_id', conversationId)
+      .lt('created_at', oldestMsgAt)
+      .order('created_at', { ascending: false })
+      .limit(MSG_PAGE_SIZE);
+    if (data && data.length > 0) {
+      const older = await enrichWithNames([...data].reverse());
+      setMessages((prev) => [...older, ...prev]);
+      setHasMoreMessages(data.length === MSG_PAGE_SIZE);
+      setOldestMsgAt(data[data.length - 1]?.created_at ?? null);
+    } else {
+      setHasMoreMessages(false);
+    }
+    setLoadingMore(false);
+  }, [oldestMsgAt, loadingMore, enrichWithNames]);
+
   // Fetch messages
   useEffect(() => {
     if (!conversation?.conversation_id) return;
 
     const conversationId = conversation.conversation_id;
 
+    setHasMoreMessages(false);
+    setOldestMsgAt(null);
+
     const fetchMessages = async () => {
       setLoadingMessages(true);
 
-      // Evita join com profiles (pode ter RLS bloqueando)
+      // Carrega apenas as últimas MSG_PAGE_SIZE mensagens (ordem desc, depois inverte)
       const { data, error } = await supabase
         .from('messages')
-        .select('*')
+        .select(MSG_COLS)
         .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(MSG_PAGE_SIZE);
 
       if (error) {
         console.error('[Messages] fetch error:', error);
       }
 
       if (!error && data) {
-        // Busca nomes dos remetentes via user_profiles (tabela com RLS amigável)
-        const senderIds = [...new Set(
-          data.map((m) => m.sender_user_id).filter(Boolean)
-        )];
-        let nameMap: Record<string, string> = {};
-        if (senderIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('user_profiles')
-            .select('id, full_name')
-            .in('id', senderIds);
-          if (profiles) {
-            nameMap = Object.fromEntries(profiles.map((p) => [p.id, p.full_name]));
-          }
-        }
-        setMessages(
-          data.map((m) => normalizeMessage({ ...m, _sender_name: nameMap[m.sender_user_id] ?? null }))
-        );
+        const rows = [...data].reverse(); // volta para ordem cronológica
+        const enriched = await enrichWithNames(rows);
+        setMessages(enriched);
+        setHasMoreMessages(data.length === MSG_PAGE_SIZE);
+        setOldestMsgAt(data[data.length - 1]?.created_at ?? null);
       }
       setLoadingMessages(false);
 
@@ -1275,6 +1315,22 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
             >
               <User size={10} />
               Só humano
+            </button>
+          </div>
+        )}
+
+        {/* Botão de paginação reversa — só aparece se há histórico anterior */}
+        {hasMoreMessages && (
+          <div className="shrink-0 flex justify-center py-2 border-b border-border/30">
+            <button
+              onClick={() => handleLoadMore(conversation.conversation_id)}
+              disabled={loadingMore}
+              className="flex items-center gap-1.5 text-[11px] font-medium text-stone-500 hover:text-stone-300 px-3 py-1.5 rounded-lg hover:bg-surface transition-colors disabled:opacity-50"
+            >
+              {loadingMore
+                ? <Loader2 size={12} className="animate-spin" />
+                : <span>↑</span>}
+              {loadingMore ? 'Carregando…' : 'Carregar mensagens anteriores'}
             </button>
           </div>
         )}

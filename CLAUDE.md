@@ -221,5 +221,69 @@ Edge Functions usam `UAZAPI_BASE_URL`, `UAZAPI_ADMIN_TOKEN` e `SUPABASE_SERVICE_
 ## Problemas Conhecidos
 1. `NewConversationModal` passa `user.id` como `p_agent_id` — deve passar `null` ou um ID de agente válido
 
+## Módulo: Dashboard Comercial (Visão Comercial)
+
+Página principal do painel do tenant. Arquivo único em `frontend/src/pages/Dashboard.tsx` (~1500 linhas).
+
+### Sub-componentes internos (definidos no próprio arquivo)
+
+| Componente | Propósito |
+|------------|-----------|
+| `ProfoundTooltip` | Tooltip escuro premium para todos os gráficos Recharts (`rgba(8,8,8,0.96)` + `backdrop-blur`) |
+| `HeroPill` | Pill de KPI secundário (Receita Fechada / Conversão / Perdidos) no bloco hero |
+| `StatCard` | Card de métrica com `useCountUp`, ícone colorido, hover scale, pulse "Em dia" |
+| `Panel` | Container padrão de seção (título + subtítulo + slot de ação) |
+| `StageBar` | Linha de ranking para Pipeline por Etapa (barra animada proporcional) |
+| `BarRow` | Linha genérica com barra inline (Canais, Prioridade, Tarefas) |
+| `FunnelRow` | Linha com barra dupla sobreposta para funil de conversão |
+| `AgentRow` | Linha de ranking de agente estilo Rho (avatar colorido, win rate pill) |
+| `UrgencySignal` | Badge de urgência condicional (urgentes + tarefas atrasadas) |
+| `SkeletonPanel` | Skeleton animado (`animate-pulse`) para painéis de gráficos |
+
+### Hooks internos
+
+| Hook | Propósito |
+|------|-----------|
+| `useCountUp(target, duration)` | Animação de número de 0 → target com `requestAnimationFrame` |
+| `useBarAnimate()` | Retorna `true` após 120ms para disparar animações CSS de barras |
+
+### Fetches de dados (5 independentes, todos com `company_id`)
+
+| Fetch | Dados | Loading state |
+|-------|-------|---------------|
+| `fetchKPIs` | Mensagens, Leads, Conversas abertas, Leads qualificados, Tarefas atrasadas | `loading` |
+| `fetchCharts` | Conversas por canal, Tarefas por status, Conversas por prioridade | `chartsLoading` |
+| `fetchCommercial` | Pipeline value, Won value, Lost count, Deals por etapa | `commercialLoading` |
+| `fetchTrend` | Série temporal diária (usa `v_kpi_company_daily` ou fallback direto em `deals`) | `trendLoading` |
+| `fetchAnalytics` | Funil de conversão por etapa, Performance por agente | `analyticsLoading` |
+
+### Biblioteca de gráficos
+**Recharts v3** — tipos usados: `ComposedChart`, `AreaChart`, `BarChart`, `Area`, `Bar`, `XAxis`, `YAxis`, `Tooltip`, `ResponsiveContainer`, `CartesianGrid`.
+
+### Design System do Dashboard
+
+- **Fundo base:** `bg-white/[0.025]` com `border-white/[0.06]` (dark mode permanente nos cards)
+- **Hero block:** `bg-gradient-to-br from-blue-950/40` com glow `drop-shadow` cyan no valor principal
+- **Paleta de acentos:** ciano `#22D3EE` (pipeline), esmeralda `#10B981` (receita/ganhos), laranja `text-orange-400` (primário/labels), vermelho `#EF4444` (perdidos), roxo `text-violet-400` (IA/leads)
+- **Grid dos gráficos:** `strokeDasharray="2 6"` + `stroke="rgba(255,255,255,0.04)"` sem linhas verticais
+- **Ticks dos eixos:** `fill: '#52525b'` (zinc-600)
+- **Animação de entrada dos cards:** classe CSS `.card-animate` definida em `index.css` com `@keyframes cardIn` (opacity 0→1, translateY 12px→0 em 400ms). Stagger via `animationDelay` prop nos `StatCard`.
+- **Barras de progresso:** animam via `useBarAnimate()` de `width: 0%` → valor real com `transition: width 700ms cubic-bezier(0.16, 1, 0.3, 1)`
+
+### Ícones necessários (lucide-react)
+Todos os ícones do Dashboard devem estar explicitamente importados no topo do arquivo:
+```
+DollarSign, Trophy, Percent, AlertCircle, MessageSquare, Target, Inbox,
+BadgeCheck, Zap, Clock, ArrowUpRight, ArrowDownRight, Minus, ChevronRight,
+Activity, TrendingUp, Mail, Users, Layers
+```
+> ⚠️ `Layers` é usado no empty state do bloco "Pipeline por Etapa". Esquecer de importá-lo causa um `ReferenceError` em runtime que derruba toda a página.
+
+### Seletor de período
+Componente separado em `frontend/src/components/Dashboard/PeriodFilter.tsx`:
+- Tipos: `'today' | '7d' | '30d' | '90d'`
+- Exporta `periodToStartDate(period): string` — retorna ISO datetime do início do período
+- Filtro "Este Mês" (`30d`) usa início do mês corrente, não exatamente 30 dias atrás
+
 ## Convenções de Commit
 Commits seguem os prefixos `feat:`, `fix:`, `refactor:`. Mensagens de commit são escritas em português.

@@ -65,8 +65,14 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const uazapiBaseUrl = Deno.env.get('UAZAPI_BASE_URL') || 'https://api.uazapi.com'; 
-    const uazapiAdminToken = Deno.env.get('UAZAPI_ADMIN_TOKEN') || 'mock_admin_token_replace_in_secrets';
+    const uazapiBaseUrl = Deno.env.get('UAZAPI_BASE_URL') || 'https://api.uazapi.com';
+    const uazapiAdminToken = Deno.env.get('UAZAPI_ADMIN_TOKEN');
+    if (!uazapiAdminToken) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Configuração ausente: UAZAPI_ADMIN_TOKEN não definido nos secrets da Edge Function.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Cria o client baseando-se no token do usuário logado (passado no header) para RLS real.
     // Usaremos esse client para validar a sessão antes de usar chamadas com bypass (service_key).

@@ -151,16 +151,36 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const enableSupportMode = useCallback(async (companyId: string, simulateUser?: UserProfile) => {
     if (user?.role !== 'system_admin' && user?.role !== 'platform_admin') return;
-    
-    const company = availableCompanies.find(c => c.id === companyId);
+
+    let company = availableCompanies.find(c => c.id === companyId);
+    if (!company) {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name')
+        .eq('id', companyId)
+        .maybeSingle();
+      if (!error && data) {
+        company = data as Company;
+      }
+    }
     if (company) {
-      // Create Audit Log
-      await supabase.from('audit_logs').insert({
-          actor_id: user.id,
-          impersonated_user_id: simulateUser?.id || null,
+      // Audit log is best-effort — a 400 here (schema cache miss or uuid-ossp
+      // extension not enabled) must not block support mode access.
+      try {
+        const { error: auditErr } = await supabase.from('audit_logs').insert({
+          actor_user_id: user.id,
           company_id: company.id,
-          action: 'ENTER_SUPPORT_MODE'
-      });
+          entity_type: 'company',
+          entity_id: company.id,
+          action: 'ENTER_SUPPORT_MODE',
+          after_data: simulateUser
+            ? { impersonated_user_id: simulateUser.id, impersonated_user_name: simulateUser.full_name }
+            : null,
+        });
+        if (auditErr) console.error('[Tenant] audit_logs insert failed:', auditErr.message, auditErr.code);
+      } catch (auditEx) {
+        console.error('[Tenant] audit_logs insert threw:', auditEx);
+      }
 
       setCurrentCompany(company);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(company));
