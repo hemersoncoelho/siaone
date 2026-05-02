@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus, CalendarDays, X, Loader2, ChevronDown, ChevronLeft, ChevronRight,
-  Search, Clock, User, Wrench, AlertCircle, Settings, Check, List as ListIcon, Tag,
+  Search, Clock, User, AlertCircle, Settings, Check, List as ListIcon, Tag,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTenant } from '../contexts/TenantContext';

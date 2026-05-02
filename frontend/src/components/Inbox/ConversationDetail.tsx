@@ -756,7 +756,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
       const older = await enrichWithNames([...data].reverse());
       setMessages((prev) => [...older, ...prev]);
       setHasMoreMessages(data.length === MSG_PAGE_SIZE);
-      setOldestMsgAt(data[data.length - 1]?.created_at ?? null);
+      setOldestMsgAt((data[data.length - 1] as unknown as { created_at: string } | null)?.created_at ?? null);
     } else {
       setHasMoreMessages(false);
     }
@@ -792,7 +792,7 @@ export const ConversationDetail: React.FC<ConversationDetailProps> = ({
         const enriched = await enrichWithNames(rows);
         setMessages(enriched);
         setHasMoreMessages(data.length === MSG_PAGE_SIZE);
-        setOldestMsgAt(data[data.length - 1]?.created_at ?? null);
+        setOldestMsgAt((data[data.length - 1] as unknown as { created_at: string } | null)?.created_at ?? null);
       }
       setLoadingMessages(false);
 

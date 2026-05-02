@@ -252,7 +252,7 @@ const ErrorBanner: React.FC<{ message: string; onRetry: () => void }> = ({ messa
 // ─── KPI Card Premium ─────────────────────────────────────────────────────────
 
 const AdminKpiCard: React.FC<KpiCardData> = ({
-  title, value, rawValue, formatFn, sub, icon, iconColor, iconBg, accentColor, delay = 0,
+  title, rawValue, formatFn, sub, icon, iconColor, iconBg, accentColor, delay = 0,
 }) => {
   const count = useCountUp(rawValue, 800, delay);
   const displayValue = formatFn ? formatFn(count) : count.toLocaleString('pt-BR');
@@ -459,7 +459,7 @@ const PipelineChart: React.FC<{ tenants: AdminTenantRow[] }> = ({ tenants }) => 
               <LabelList
                 dataKey="Em Aberto"
                 position="right"
-                formatter={(v: number) => (v > 0 ? formatBRLCompact(v) : '')}
+                formatter={(v) => (Number(v) > 0 ? formatBRLCompact(Number(v)) : '')}
                 style={{ fill: '#78716C', fontSize: 9, fontFamily: 'monospace' }}
               />
             </Bar>
@@ -467,7 +467,7 @@ const PipelineChart: React.FC<{ tenants: AdminTenantRow[] }> = ({ tenants }) => 
               <LabelList
                 dataKey="Fechados (Won)"
                 position="right"
-                formatter={(v: number) => (v > 0 ? formatBRLCompact(v) : '')}
+                formatter={(v) => (Number(v) > 0 ? formatBRLCompact(Number(v)) : '')}
                 style={{ fill: '#78716C', fontSize: 9, fontFamily: 'monospace' }}
               />
             </Bar>
@@ -567,7 +567,7 @@ const AiAdoptionChart: React.FC<{ tenants: AdminTenantRow[] }> = ({ tenants }) =
               <LabelList
                 dataKey="iaPct"
                 position="top"
-                formatter={(v: number) => (v > 0 ? `${v}%` : '')}
+                formatter={(v) => (Number(v) > 0 ? `${v}%` : '')}
                 style={{ fill: '#A78BFA', fontSize: 10, fontFamily: 'monospace' }}
               />
             </Bar>
