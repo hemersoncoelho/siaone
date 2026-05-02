@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const handleSessionUpdate = async (session: Session | null) => {
+  const handleSessionUpdate = async (session: Session | null, retryCount = 0) => {
     if (!session) {
       setUser(null);
       setSessionState('unauthenticated');
@@ -83,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // applying a timed-out fetch result AFTER a successful concurrent fetch.
     const myGen = ++fetchGenRef.current;
 
-    console.log('[Auth] Session found for user:', session.user.id);
+    console.log('[Auth] Session found for user:', session.user.id, retryCount > 0 ? `(retry ${retryCount})` : '');
 
     setSessionState('loading');
     setProfileLoading(true);
@@ -119,25 +119,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userRef.current = resolved;
         setUser(resolved);
       } else {
-        // Timeout or error on profile fetch.
-        // If a valid user was already loaded (token-refresh race), preserve it.
-        // If this is the FIRST load (userRef is null), do NOT apply the 'agent'
-        // fallback — guards would fire with the wrong role, causing redirects.
-        // Instead stay in 'loading'; the next auth event (TOKEN_REFRESHED /
-        // SIGNED_IN) will trigger a retry that should succeed.
-        console.warn('[Auth] Profile fetch failed, will retry on next auth event:', error?.message);
-        // userRef.current is unchanged: either the existing valid user or null.
-        // setUser is intentionally not called here when userRef is null.
+        // Timeout or transient error — retry automatically up to 3 times with
+        // exponential backoff (2s, 4s, 8s). After that, fall back to 'unauthenticated'
+        // so the user sees the login screen instead of being stuck loading forever.
+        if (retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 2000;
+          console.warn(`[Auth] Profile fetch failed, retrying in ${delay}ms (attempt ${retryCount + 1}/3):`, error?.message);
+          setTimeout(() => {
+            if (mountedRef.current) handleSessionUpdate(session, retryCount + 1);
+          }, delay);
+        } else {
+          console.error('[Auth] Profile fetch failed after 3 retries, redirecting to login:', error?.message);
+          userRef.current = null;
+          setUser(null);
+          profileLoadedRef.current = false;
+          setSessionState('unauthenticated');
+        }
       }
     } catch (err) {
       if (!mountedRef.current || fetchGenRef.current !== myGen) return;
       console.error('[Auth] Unexpected error fetching profile:', err);
-      // Same policy: preserve existing user, do not apply fallback on first load.
     } finally {
       if (!mountedRef.current || fetchGenRef.current !== myGen) return;
       setProfileLoading(false);
       // Only transition to 'authenticated' if we actually have a resolved user.
-      // If userRef.current is null the state stays 'loading' until the retry succeeds.
+      // If userRef.current is null the state stays 'loading' until retry resolves.
       if (userRef.current !== null) {
         setSessionState('authenticated');
         console.log('[Auth] State set to authenticated');
